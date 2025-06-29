@@ -82,8 +82,8 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
         setInitializationStep('generating');
         console.log('Generating first question...');
         
-        // Generate and speak the first question
-        const firstQuestion = await generateQuestion();
+        // Generate and speak the first question - pass the session directly
+        const firstQuestion = await generateQuestion(session);
         if (firstQuestion) {
           console.log('First question generated:', firstQuestion.content);
           setInitializationStep('ready');

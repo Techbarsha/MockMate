@@ -25,18 +25,19 @@ export function useInterview() {
     return session;
   }, []);
 
-  const generateQuestion = useCallback(async () => {
-    if (!currentSession) return null;
+  const generateQuestion = useCallback(async (sessionOverride?: InterviewSession) => {
+    const session = sessionOverride || currentSession;
+    if (!session) return null;
 
     setIsGenerating(true);
     setError(null);
 
     try {
       const question = await huggingFaceService.generateInterviewQuestion({
-        type: currentSession.settings.type,
-        difficulty: currentSession.settings.difficulty,
-        previousMessages: currentSession.messages,
-        resumeData: currentSession.resumeData
+        type: session.settings.type,
+        difficulty: session.settings.difficulty,
+        previousMessages: session.messages,
+        resumeData: session.resumeData
       });
 
       const message: Message = {
@@ -47,8 +48,8 @@ export function useInterview() {
       };
 
       const updatedSession = {
-        ...currentSession,
-        messages: [...currentSession.messages, message]
+        ...session,
+        messages: [...session.messages, message]
       };
 
       setCurrentSession(updatedSession);
