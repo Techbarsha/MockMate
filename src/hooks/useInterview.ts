@@ -32,8 +32,10 @@ export function useInterview() {
     }
   }, []);
 
-  const generateQuestion = useCallback(async () => {
-    if (!currentSession) {
+  const generateQuestion = useCallback(async (sessionOverride?: InterviewSession) => {
+    const session = sessionOverride || currentSession;
+    
+    if (!session) {
       console.error('No current session available for question generation');
       return null;
     }
@@ -42,12 +44,12 @@ export function useInterview() {
     setError(null);
 
     try {
-      console.log('Generating question for session:', currentSession.id);
+      console.log('Generating question for session:', session.id);
       const question = await huggingFaceService.generateInterviewQuestion({
-        type: currentSession.settings.type,
-        difficulty: currentSession.settings.difficulty,
-        previousMessages: currentSession.messages,
-        resumeData: currentSession.resumeData
+        type: session.settings.type,
+        difficulty: session.settings.difficulty,
+        previousMessages: session.messages,
+        resumeData: session.resumeData
       });
 
       const message: Message = {
@@ -58,8 +60,8 @@ export function useInterview() {
       };
 
       const updatedSession = {
-        ...currentSession,
-        messages: [...currentSession.messages, message]
+        ...session,
+        messages: [...session.messages, message]
       };
 
       setCurrentSession(updatedSession);
@@ -79,8 +81,8 @@ export function useInterview() {
       };
       
       const updatedSession = {
-        ...currentSession,
-        messages: [...currentSession.messages, fallbackMessage]
+        ...session,
+        messages: [...session.messages, fallbackMessage]
       };
       
       setCurrentSession(updatedSession);
