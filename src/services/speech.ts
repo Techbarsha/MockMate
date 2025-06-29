@@ -164,12 +164,17 @@ export class SpeechService {
           };
 
           utterance.onerror = (error) => {
-            console.error('Speech synthesis error:', error);
+            // Only log actual errors, not interruptions which are normal behavior
+            if (error.error !== 'interrupted') {
+              console.error('Speech synthesis error:', error);
+            } else {
+              console.log('Speech was interrupted (normal behavior)');
+            }
+            
             this.currentUtterance = null;
             
             // Don't reject for interrupted errors as they're often normal
             if (error.error === 'interrupted') {
-              console.log('Speech was interrupted (normal behavior)');
               resolve();
             } else {
               reject(error);
