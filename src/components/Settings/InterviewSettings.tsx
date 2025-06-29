@@ -369,8 +369,7 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
                     Your session will be {settings.duration} minutes of {settings.type} questions
                   </p>
                   <div className="flex items-center justify-center mt-2 text-xs text-green-600 dark:text-green-400">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    No signup required • Completely free
+                    
                   </div>
                 </div>
               </motion.div>
