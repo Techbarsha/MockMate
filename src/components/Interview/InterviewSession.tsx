@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Settings, Download, CheckCircle, Volume2, VolumeX, Mic, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import InterviewerAvatar from '../Avatar/InterviewerAvatar';
+import FaceInterviewer from '../Avatar/FaceInterviewer';
 import VoiceRecorder from './VoiceRecorder';
 import TranscriptPanel from './TranscriptPanel';
 import FeedbackPanel from './FeedbackPanel';
@@ -28,6 +28,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
   const [isInitialized, setIsInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [initializationStep, setInitializationStep] = useState('starting');
+  const [avatarEmotion, setAvatarEmotion] = useState<'neutral' | 'happy' | 'focused' | 'encouraging'>('neutral');
 
   const storageService = StorageService.getInstance();
 
@@ -59,6 +60,19 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     endInterview,
     getFeedback
   } = useInterview();
+
+  // Update avatar emotion based on interview state
+  useEffect(() => {
+    if (isSpeaking) {
+      setAvatarEmotion('focused');
+    } else if (isListening) {
+      setAvatarEmotion('encouraging');
+    } else if (questionCount > 0) {
+      setAvatarEmotion('happy');
+    } else {
+      setAvatarEmotion('neutral');
+    }
+  }, [isSpeaking, isListening, questionCount]);
 
   // Initialize interview with better error handling and progress tracking
   useEffect(() => {
@@ -238,12 +252,12 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">🎉 Ready to Start!</h2>
           <p className="text-gray-600 mb-4">
-            Using completely free, open-source AI technology
+            Using completely free, open-source AI technology with realistic face interviewer
           </p>
           <div className="bg-green-50 rounded-lg p-4 mb-6 border border-green-200">
             <div className="flex items-center justify-center text-green-700">
               <CheckCircle className="w-5 h-5 mr-2" />
-              <span className="font-medium">No API key required • 100% Free • Privacy-focused</span>
+              <span className="font-medium">AI Face Interviewer • Real Expressions • 100% Free</span>
             </div>
           </div>
           
@@ -331,7 +345,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                   {settings.type.charAt(0).toUpperCase() + settings.type.slice(1)} Interview
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Question {questionCount + 1} of {maxQuestions} • Free Open Source AI • Real-time Lip Sync
+                  Question {questionCount + 1} of {maxQuestions} • AI Face Interviewer • Real-time Expressions
                 </p>
               </div>
             </div>
@@ -345,7 +359,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
               </div>
               <div className="flex items-center text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
                 <CheckCircle className="w-4 h-4 mr-1" />
-                Free AI
+                AI Face
               </div>
               <button
                 onClick={toggleFullscreen}
@@ -368,12 +382,13 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       <div className={`flex ${isFullscreen ? 'h-[calc(100vh-4rem)]' : 'h-[calc(100vh-4rem)]'}`}>
         {/* Main Interview Area */}
         <div className={`flex ${isFullscreen ? 'w-full' : 'flex-1'}`}>
-          {/* Avatar Section - Flexible sizing */}
+          {/* Avatar Section - Now using FaceInterviewer */}
           <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} ${isFullscreen ? 'p-0' : 'p-6'}`}>
             <div className={`h-full ${isFullscreen ? '' : 'bg-white rounded-xl shadow-lg overflow-hidden'}`}>
-              <InterviewerAvatar
+              <FaceInterviewer
                 isSpeaking={isSpeaking}
                 avatarStyle={settings.avatarStyle}
+                emotion={avatarEmotion}
                 className="h-full w-full"
               />
             </div>
