@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Settings, Download, CheckCircle, Volume2, VolumeX, Mic, Maximize2 } from 'lucide-react';
+import { ArrowLeft, Settings, Download, CheckCircle, Volume2, VolumeX, Mic, Maximize2, Play, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import FaceInterviewer from '../Avatar/FaceInterviewer';
 import VoiceRecorder from './VoiceRecorder';
@@ -29,6 +29,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [initializationStep, setInitializationStep] = useState('starting');
   const [avatarEmotion, setAvatarEmotion] = useState<'neutral' | 'happy' | 'focused' | 'encouraging'>('neutral');
+  const [speechError, setSpeechError] = useState<string | null>(null);
 
   const storageService = StorageService.getInstance();
 
@@ -46,8 +47,10 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     isSpeaking,
     speak,
     cancel: cancelSpeech,
-    error: speechError,
-    testSpeech
+    error: speechSynthesisError,
+    isReady: speechReady,
+    testSpeech,
+    checkAudioPermissions
   } = useSpeechSynthesis();
 
   const {
@@ -74,12 +77,20 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     }
   }, [isSpeaking, isListening, questionCount]);
 
+  // Monitor speech synthesis errors
+  useEffect(() => {
+    setSpeechError(speechSynthesisError);
+  }, [speechSynthesisError]);
+
   // Initialize interview with better error handling and progress tracking
   useEffect(() => {
     const initializeInterview = async () => {
       try {
         console.log('Starting interview initialization...');
         setInitializationStep('initializing');
+        
+        // Check audio permissions first
+        await checkAudioPermissions();
         
         // Start the interview session
         const session = startInterview(settings, resumeData);
@@ -90,8 +101,13 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
         console.log('Interview session created successfully');
         setInitializationStep('preparing');
         
-        // Wait a moment for UI to settle
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait for speech synthesis to be ready
+        let speechWaitAttempts = 0;
+        while (!speechReady && speechWaitAttempts < 10) {
+          console.log('Waiting for speech synthesis to be ready...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          speechWaitAttempts++;
+        }
         
         setInitializationStep('generating');
         console.log('Generating first question...');
@@ -111,6 +127,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                 console.log('First question spoken successfully');
               } catch (error) {
                 console.error('Error speaking first question:', error);
+                setSpeechError('Failed to speak question. Please check your audio settings.');
                 // Continue anyway - user can still read the question
               }
             }
@@ -118,7 +135,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
             // Mark as fully initialized
             setIsInitialized(true);
             console.log('Interview fully initialized and ready');
-          }, 500);
+          }, 1000);
         } else {
           console.error('Failed to generate first question');
           // Still allow the interview to proceed
@@ -126,13 +143,14 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
         }
       } catch (error) {
         console.error('Error during interview initialization:', error);
+        setSpeechError('Initialization failed. Please try again.');
         // Show error but still allow proceeding
         setIsInitialized(true);
       }
     };
 
     initializeInterview();
-  }, [settings, resumeData, startInterview, generateQuestion, speak, isSpeakerMuted]);
+  }, [settings, resumeData, startInterview, generateQuestion, speak, isSpeakerMuted, speechReady, checkAudioPermissions]);
 
   const handleGenerateQuestion = useCallback(async () => {
     console.log('Generating question...');
@@ -140,10 +158,12 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     if (message && !isSpeakerMuted) {
       console.log('Speaking question:', message.content);
       try {
+        setSpeechError(null);
         await speak(message.content, settings.voiceAccent);
         console.log('Question spoken successfully');
       } catch (error) {
         console.error('Error speaking question:', error);
+        setSpeechError('Failed to speak question. You can still read it above.');
       }
     }
   }, [generateQuestion, speak, isSpeakerMuted, settings.voiceAccent]);
@@ -215,10 +235,24 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
   const handleTestSpeech = async () => {
     console.log('Testing speech...');
     try {
+      setSpeechError(null);
       await testSpeech();
       console.log('Speech test completed');
     } catch (error) {
       console.error('Speech test failed:', error);
+      setSpeechError('Speech test failed. Please check your browser audio settings.');
+    }
+  };
+
+  const handleRetryAudio = async () => {
+    console.log('Retrying audio setup...');
+    setSpeechError(null);
+    try {
+      await checkAudioPermissions();
+      await testSpeech();
+    } catch (error) {
+      console.error('Audio retry failed:', error);
+      setSpeechError('Audio setup failed. Please check your browser settings.');
     }
   };
 
@@ -280,21 +314,37 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
             </div>
           </div>
           
-          {/* Test Speech Button */}
-          <button
-            onClick={handleTestSpeech}
-            className="mt-6 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
-          >
-            Test Speech System
-          </button>
+          {/* Audio Controls */}
+          <div className="mt-6 space-y-3">
+            <button
+              onClick={handleTestSpeech}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm flex items-center justify-center"
+            >
+              <Volume2 className="w-4 h-4 mr-2" />
+              Test Speech System
+            </button>
 
-          {/* Skip initialization button for debugging */}
-          <button
-            onClick={() => setIsInitialized(true)}
-            className="mt-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
-          >
-            Skip & Continue
-          </button>
+            {speechError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-700 text-sm mb-2">{speechError}</p>
+                <button
+                  onClick={handleRetryAudio}
+                  className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition-colors flex items-center"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Retry Audio
+                </button>
+              </div>
+            )}
+
+            {/* Skip initialization button for debugging */}
+            <button
+              onClick={() => setIsInitialized(true)}
+              className="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+            >
+              Skip & Continue
+            </button>
+          </div>
         </motion.div>
       </div>
     );
@@ -421,12 +471,20 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                       {voiceError || interviewError || speechError}
                     </p>
                     {speechError && (
-                      <button
-                        onClick={handleTestSpeech}
-                        className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition-colors"
-                      >
-                        Test Speech System
-                      </button>
+                      <div className="mt-2 space-x-2">
+                        <button
+                          onClick={handleTestSpeech}
+                          className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition-colors"
+                        >
+                          Test Speech
+                        </button>
+                        <button
+                          onClick={handleRetryAudio}
+                          className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition-colors"
+                        >
+                          Retry Audio
+                        </button>
+                      </div>
                     )}
                   </motion.div>
                 )}
@@ -442,6 +500,16 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                     <span>{isListening ? 'Listening...' : 'Ready to Listen'}</span>
                   </div>
                 </div>
+
+                {/* Speech Ready Indicator */}
+                {speechReady && (
+                  <div className="mt-4 flex items-center justify-center">
+                    <div className="flex items-center space-x-1 px-3 py-2 bg-green-50 rounded-full border border-green-200">
+                      <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      <span className="text-xs text-green-700 font-medium">Voice System Ready</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Transcript Panel */}

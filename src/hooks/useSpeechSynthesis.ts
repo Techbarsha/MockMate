@@ -4,6 +4,7 @@ import { SpeechService } from '../services/speech';
 export function useSpeechSynthesis() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
   const speechServiceRef = useRef<SpeechService | null>(null);
 
   const initializeSpeechService = useCallback(() => {
@@ -13,17 +14,45 @@ export function useSpeechSynthesis() {
     return speechServiceRef.current;
   }, []);
 
-  // Check if speech synthesis is available
+  // Check if speech synthesis is available and initialize
   useEffect(() => {
-    if (!window.speechSynthesis) {
-      setError('Speech synthesis not supported in this browser');
-    }
-  }, []);
+    const checkSpeechSupport = async () => {
+      if (!window.speechSynthesis) {
+        setError('Speech synthesis not supported in this browser');
+        return;
+      }
+
+      const speechService = initializeSpeechService();
+      
+      // Wait for voices to load
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      const checkVoices = () => {
+        attempts++;
+        if (speechService.isVoiceReady) {
+          setIsReady(true);
+          setError(null);
+          console.log('Speech synthesis is ready');
+        } else if (attempts < maxAttempts) {
+          setTimeout(checkVoices, 500);
+        } else {
+          console.warn('Speech synthesis voices not loaded after maximum attempts');
+          setIsReady(true); // Allow to proceed anyway
+        }
+      };
+
+      checkVoices();
+    };
+
+    checkSpeechSupport();
+  }, [initializeSpeechService]);
 
   const speak = useCallback(async (text: string, voice?: string) => {
     if (!window.speechSynthesis) {
-      setError('Speech synthesis not supported');
-      return;
+      const errorMsg = 'Speech synthesis not supported';
+      setError(errorMsg);
+      throw new Error(errorMsg);
     }
 
     const speechService = initializeSpeechService();
@@ -32,10 +61,19 @@ export function useSpeechSynthesis() {
     setIsSpeaking(true);
 
     try {
-      console.log('Attempting to speak:', text.substring(0, 50) + '...');
+      console.log('Starting speech synthesis:', text.substring(0, 50) + '...');
+      
+      // Ensure voices are loaded before speaking
+      if (!speechService.isVoiceReady) {
+        console.log('Voices not ready, reloading...');
+        speechService.reloadVoices();
+        
+        // Wait a bit for voices to load
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       
       await speechService.speak(text, voice);
-      console.log('Speech completed successfully');
+      console.log('Speech synthesis completed successfully');
     } catch (err) {
       // Check if the error is an interruption (which is normal behavior)
       const isInterruptedError = err && typeof err === 'object' && 'error' in err && err.error === 'interrupted';
@@ -45,9 +83,10 @@ export function useSpeechSynthesis() {
         console.log('Speech was interrupted (normal behavior)');
       } else {
         // Only treat non-interruption errors as actual errors
-        const errorMessage = 'Failed to synthesize speech. Please check your browser settings.';
+        const errorMessage = 'Failed to synthesize speech. Please check your browser settings and ensure audio is enabled.';
         setError(errorMessage);
         console.error('Speech synthesis error:', err);
+        throw new Error(errorMessage);
       }
     } finally {
       setIsSpeaking(false);
@@ -59,6 +98,7 @@ export function useSpeechSynthesis() {
     if (speechService) {
       speechService.cancelSpeech();
       setIsSpeaking(false);
+      console.log('Speech synthesis cancelled');
     }
   }, []);
 
@@ -68,15 +108,52 @@ export function useSpeechSynthesis() {
   }, [initializeSpeechService]);
 
   const testSpeech = useCallback(async () => {
-    await speak('Hello, this is a test of the speech synthesis system.');
-  }, [speak]);
+    try {
+      setError(null);
+      const speechService = initializeSpeechService();
+      await speechService.testSpeech();
+      console.log('Speech test completed successfully');
+    } catch (err) {
+      const errorMessage = 'Speech test failed. Please check your browser audio settings.';
+      setError(errorMessage);
+      console.error('Speech test error:', err);
+      throw new Error(errorMessage);
+    }
+  }, [initializeSpeechService]);
+
+  const checkAudioPermissions = useCallback(async () => {
+    try {
+      // Check if audio context is available
+      if (typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined') {
+        const AudioContextClass = AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContextClass();
+        
+        if (audioContext.state === 'suspended') {
+          console.log('Audio context is suspended, attempting to resume...');
+          await audioContext.resume();
+        }
+        
+        console.log('Audio context state:', audioContext.state);
+        audioContext.close();
+      }
+    } catch (err) {
+      console.warn('Audio context check failed:', err);
+    }
+  }, []);
+
+  // Auto-check audio permissions when component mounts
+  useEffect(() => {
+    checkAudioPermissions();
+  }, [checkAudioPermissions]);
 
   return {
     isSpeaking,
     error,
+    isReady,
     speak,
     cancel,
     getVoices,
-    testSpeech
+    testSpeech,
+    checkAudioPermissions
   };
 }
