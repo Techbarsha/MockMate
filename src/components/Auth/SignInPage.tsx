@@ -31,6 +31,10 @@ export default function SignInPage({ onBack, onSignIn }: SignInPageProps) {
     navigate('/signup');
   };
 
+  const handleForgotPassword = () => {
+    navigate('/forgot-password');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col">
       <div className="flex-1 flex items-center justify-center p-4">
@@ -127,9 +131,13 @@ export default function SignInPage({ onBack, onSignIn }: SignInPageProps) {
                   />
                   <span className="ml-2 text-sm text-gray-600 dark:text-gray-300 font-medium">Remember me</span>
                 </label>
-                <a href="/forgot-password" className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium transition-colors">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium transition-colors"
+                >
                   Forgot password?
-                </a>
+                </button>
               </div>
 
               {/* Sign In Button */}
