@@ -15,62 +15,15 @@ export class HuggingFaceService {
     previousMessages: any[];
     resumeData?: any;
   }): Promise<string> {
-    const prompt = this.buildPrompt(context);
-    const apiKey = this.storageService.getHuggingFaceApiKey();
-    
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+    console.log('Generating interview question with context:', {
+      type: context.type,
+      difficulty: context.difficulty,
+      messageCount: context.previousMessages.length,
+      hasResume: !!context.resumeData
+    });
 
-      // Add authorization header if API key is available
-      if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
-      }
-
-      const response = await fetch(`${this.baseUrl}/${this.model}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          inputs: prompt,
-          parameters: {
-            max_length: 150,
-            temperature: 0.7,
-            do_sample: true,
-            pad_token_id: 50256
-          }
-        }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          console.warn('Hugging Face API requires authentication. Using fallback questions.');
-          return this.getFallbackQuestion(context.type, context.resumeData);
-        }
-        
-        const errorMessage = response.statusText || 
-          `HTTP ${response.status} - This could be due to network issues, server unavailability, or API rate limits`;
-        console.warn(`Hugging Face API error: ${errorMessage}. Using fallback questions.`);
-        return this.getFallbackQuestion(context.type, context.resumeData);
-      }
-
-      const data = await response.json();
-      
-      // Handle different response formats
-      let generatedText = '';
-      if (Array.isArray(data) && data[0]?.generated_text) {
-        generatedText = data[0].generated_text;
-      } else if (data.generated_text) {
-        generatedText = data.generated_text;
-      }
-
-      // Extract the question from the generated text
-      const question = this.extractQuestion(generatedText, prompt);
-      return question || this.getFallbackQuestion(context.type, context.resumeData);
-    } catch (error) {
-      console.warn('Error generating question:', error);
-      return this.getFallbackQuestion(context.type, context.resumeData);
-    }
+    // Always use fallback questions for reliability
+    return this.getFallbackQuestion(context.type, context.resumeData, context.previousMessages.length);
   }
 
   async provideFeedback(context: {
@@ -82,6 +35,8 @@ export class HuggingFaceService {
     feedback: string;
     suggestions: string[];
   }> {
+    console.log('Providing feedback for response:', context.userResponse.substring(0, 50) + '...');
+    
     // Use a simpler approach for feedback since we're using free models
     const score = this.calculateBasicScore(context.userResponse);
     const feedback = this.generateBasicFeedback(context.userResponse, context.type);
@@ -90,113 +45,18 @@ export class HuggingFaceService {
     return { score, feedback, suggestions };
   }
 
-  private buildPrompt(context: any): string {
-    const roleContext = this.getRoleContext(context.type);
-    const difficultyContext = this.getDifficultyContext(context.difficulty);
-    
-    let prompt = `You are a professional interviewer conducting a ${context.type} interview. ${roleContext} ${difficultyContext}`;
-    
-    // Add conversation history for context
-    if (context.previousMessages.length > 0) {
-      const lastMessages = context.previousMessages.slice(-4); // Keep last 4 messages
-      prompt += '\n\nConversation so far:\n';
-      lastMessages.forEach(msg => {
-        const role = msg.role === 'assistant' ? 'Interviewer' : 'Candidate';
-        prompt += `${role}: ${msg.content}\n`;
-      });
-    }
-
-    // Add resume context if available - ENHANCED FOR RESUME-BASED QUESTIONS
-    if (context.resumeData) {
-      prompt += `\n\nCandidate's Resume Information:`;
-      prompt += `\nName: ${context.resumeData.name || 'Not provided'}`;
-      prompt += `\nSummary: ${context.resumeData.summary || 'Not provided'}`;
-      
-      if (context.resumeData.skills?.length > 0) {
-        prompt += `\nSkills: ${context.resumeData.skills.join(', ')}`;
-      }
-      
-      if (context.resumeData.experience?.length > 0) {
-        prompt += `\nExperience:`;
-        context.resumeData.experience.forEach((exp: any, index: number) => {
-          prompt += `\n${index + 1}. ${exp.position} at ${exp.company} (${exp.duration})`;
-          if (exp.description?.length > 0) {
-            prompt += ` - ${exp.description.join(', ')}`;
-          }
-        });
-      }
-      
-      if (context.resumeData.education?.length > 0) {
-        prompt += `\nEducation:`;
-        context.resumeData.education.forEach((edu: any, index: number) => {
-          prompt += `\n${index + 1}. ${edu.degree} from ${edu.institution} (${edu.year})`;
-        });
-      }
-      
-      prompt += `\n\nBased on this resume, ask specific questions about their experience, skills, or projects mentioned.`;
-    }
-
-    prompt += '\n\nInterviewer: ';
-    return prompt;
-  }
-
-  private getRoleContext(type: string): string {
-    switch (type) {
-      case 'hr':
-        return 'Ask questions about background, motivation, cultural fit, and work experience.';
-      case 'technical':
-        return 'Ask technical questions relevant to the role, including problem-solving scenarios.';
-      case 'behavioral':
-        return 'Ask behavioral questions using the STAR method about past experiences.';
-      default:
-        return 'Ask professional interview questions.';
-    }
-  }
-
-  private getDifficultyContext(difficulty: string): string {
-    switch (difficulty) {
-      case 'fresher':
-        return 'Keep questions suitable for entry-level candidates with 0-2 years experience.';
-      case 'mid':
-        return 'Ask intermediate-level questions for candidates with 2-5 years experience.';
-      case 'senior':
-        return 'Ask advanced questions suitable for senior professionals with 5+ years experience.';
-      default:
-        return 'Ask appropriate questions for the candidate level.';
-    }
-  }
-
-  private extractQuestion(generatedText: string, originalPrompt: string): string {
-    // Remove the original prompt from the generated text
-    let question = generatedText.replace(originalPrompt, '').trim();
-    
-    // Clean up the response
-    question = question.split('\n')[0]; // Take first line
-    question = question.replace(/^(Interviewer:|Assistant:|AI:)/i, '').trim();
-    
-    // Ensure it ends with a question mark
-    if (question && !question.endsWith('?')) {
-      question += '?';
-    }
-
-    // Validate the question
-    if (question.length < 10 || question.length > 200) {
-      return '';
-    }
-
-    return question;
-  }
-
   private calculateBasicScore(response: string): number {
     let score = 50; // Base score
     
     // Length check
     if (response.length > 100) score += 10;
     if (response.length > 200) score += 10;
+    if (response.length > 300) score += 5;
     
     // Keyword analysis for different aspects
-    const positiveWords = ['experience', 'skilled', 'accomplished', 'successful', 'managed', 'led', 'developed', 'improved'];
-    const structureWords = ['first', 'then', 'finally', 'because', 'therefore', 'however', 'additionally'];
+    const positiveWords = ['experience', 'skilled', 'accomplished', 'successful', 'managed', 'led', 'developed', 'improved', 'achieved', 'responsible'];
+    const structureWords = ['first', 'then', 'finally', 'because', 'therefore', 'however', 'additionally', 'furthermore', 'moreover'];
+    const professionalWords = ['team', 'project', 'client', 'customer', 'solution', 'challenge', 'goal', 'result'];
     
     positiveWords.forEach(word => {
       if (response.toLowerCase().includes(word)) score += 3;
@@ -205,9 +65,17 @@ export class HuggingFaceService {
     structureWords.forEach(word => {
       if (response.toLowerCase().includes(word)) score += 2;
     });
+
+    professionalWords.forEach(word => {
+      if (response.toLowerCase().includes(word)) score += 2;
+    });
     
     // Penalize very short responses
     if (response.length < 50) score -= 20;
+    if (response.length < 20) score -= 30;
+    
+    // Bonus for detailed responses
+    if (response.length > 400) score += 5;
     
     return Math.min(Math.max(score, 0), 100);
   }
@@ -215,12 +83,14 @@ export class HuggingFaceService {
   private generateBasicFeedback(response: string, type: string): string {
     const score = this.calculateBasicScore(response);
     
-    if (score >= 80) {
-      return "Excellent response! You provided detailed information and demonstrated good communication skills.";
-    } else if (score >= 60) {
-      return "Good response! Consider adding more specific examples to strengthen your answer.";
+    if (score >= 85) {
+      return "Excellent response! You provided detailed information, used professional language, and demonstrated strong communication skills. Your answer shows good structure and relevant examples.";
+    } else if (score >= 70) {
+      return "Good response! You covered the key points well. Consider adding more specific examples and elaborating on your achievements to make your answer even stronger.";
+    } else if (score >= 55) {
+      return "Decent response, but there's room for improvement. Try to provide more detailed examples and structure your answer more clearly. Focus on specific achievements and outcomes.";
     } else {
-      return "Your response could be improved. Try to provide more detailed examples and elaborate on your points.";
+      return "Your response could be significantly improved. Try to provide more detailed examples, use professional language, and elaborate on your points. Practice the STAR method for behavioral questions.";
     }
   }
 
@@ -231,7 +101,7 @@ export class HuggingFaceService {
       suggestions.push("Provide more detailed responses with specific examples");
     }
     
-    if (type === 'behavioral' && !response.toLowerCase().includes('situation')) {
+    if (type === 'behavioral' && !response.toLowerCase().includes('situation') && !response.toLowerCase().includes('example')) {
       suggestions.push("Use the STAR method: Situation, Task, Action, Result");
     }
     
@@ -239,62 +109,83 @@ export class HuggingFaceService {
       suggestions.push("Explain your technical approach in more detail");
     }
     
-    if (!response.includes('experience') && !response.includes('project')) {
+    if (!response.includes('experience') && !response.includes('project') && !response.includes('work')) {
       suggestions.push("Include relevant experience or project examples");
+    }
+
+    if (response.length < 200) {
+      suggestions.push("Elaborate more on your achievements and outcomes");
+    }
+
+    if (type === 'hr' && !response.toLowerCase().includes('team') && !response.toLowerCase().includes('collaborate')) {
+      suggestions.push("Mention teamwork and collaboration skills");
     }
     
     suggestions.push("Practice speaking clearly and confidently");
+    suggestions.push("Use specific metrics and results when possible");
     
     return suggestions.slice(0, 3); // Return max 3 suggestions
   }
 
-  private getFallbackQuestion(type: string, resumeData?: any): string {
-    // Enhanced fallback questions that can use resume data
+  private getFallbackQuestion(type: string, resumeData?: any, questionIndex: number = 0): string {
     const fallbacks = {
       hr: [
-        "Tell me about yourself and what interests you about this role?",
+        "Tell me about yourself and what interests you about this role.",
         "What are your greatest strengths and how do they apply to this position?",
         "Where do you see yourself in five years?",
         "Why are you looking to leave your current position?",
         "What motivates you in your work?",
         "How do you handle stress and pressure?",
         "What's your ideal work environment?",
-        "Tell me about a time you overcame a challenge."
+        "Tell me about a time you overcame a challenge.",
+        "What are your salary expectations?",
+        "Do you have any questions for me?"
       ],
       technical: [
         "Can you walk me through your approach to solving complex technical problems?",
         "Describe a challenging technical project you've worked on recently.",
         "How do you stay updated with the latest technology trends?",
         "Explain a time when you had to debug a difficult issue.",
-        "What's your experience with version control systems?",
+        "What's your experience with version control systems like Git?",
         "How do you ensure code quality in your projects?",
         "Describe your experience with testing methodologies.",
-        "What's your approach to learning new technologies?"
+        "What's your approach to learning new technologies?",
+        "How do you handle technical debt in your projects?",
+        "Explain your experience with database design and optimization."
       ],
       behavioral: [
-        "Describe a challenging situation you faced at work and how you handled it?",
+        "Describe a challenging situation you faced at work and how you handled it.",
         "Tell me about a time when you had to work with a difficult team member.",
         "Give me an example of when you had to meet a tight deadline.",
         "Describe a situation where you had to learn something new quickly.",
         "Tell me about a time when you made a mistake and how you handled it.",
         "Describe a time when you had to lead a team or project.",
         "Tell me about a time when you disagreed with your manager.",
-        "Give me an example of when you went above and beyond."
+        "Give me an example of when you went above and beyond.",
+        "Describe a time when you had to adapt to a significant change.",
+        "Tell me about a time when you had to give difficult feedback."
       ]
     };
     
     const questions = fallbacks[type as keyof typeof fallbacks] || fallbacks.hr;
-    let selectedQuestion = questions[Math.floor(Math.random() * questions.length)];
+    
+    // Use question index to cycle through questions, with some randomization
+    const baseIndex = questionIndex % questions.length;
+    const randomOffset = Math.floor(Math.random() * 3); // Add some randomness
+    const selectedIndex = (baseIndex + randomOffset) % questions.length;
+    
+    let selectedQuestion = questions[selectedIndex];
     
     // If resume data is available, try to make the question more specific
-    if (resumeData && Math.random() > 0.5) { // 50% chance to use resume-based question
-      selectedQuestion = this.generateResumeBasedQuestion(type, resumeData, selectedQuestion);
+    if (resumeData && Math.random() > 0.3) { // 70% chance to use resume-based question
+      selectedQuestion = this.generateResumeBasedQuestion(type, resumeData, selectedQuestion, questionIndex);
     }
     
+    console.log('Selected fallback question:', selectedQuestion);
     return selectedQuestion;
   }
 
-  private generateResumeBasedQuestion(type: string, resumeData: any, fallbackQuestion: string): string {
+  private generateResumeBasedQuestion(type: string, resumeData: any, fallbackQuestion: string, questionIndex: number): string {
     try {
       // Generate questions based on resume data
       if (resumeData.experience?.length > 0) {
@@ -302,15 +193,29 @@ export class HuggingFaceService {
         
         switch (type) {
           case 'hr':
-            return `I see you worked as ${experience.position} at ${experience.company}. What drew you to that role and what did you enjoy most about it?`;
+            if (questionIndex === 0) {
+              return `I see you worked as ${experience.position} at ${experience.company}. Can you tell me about yourself and what drew you to that role?`;
+            } else if (questionIndex === 1) {
+              return `What did you enjoy most about your role as ${experience.position} at ${experience.company}?`;
+            } else {
+              return `How has your experience as ${experience.position} at ${experience.company} prepared you for this role?`;
+            }
           case 'technical':
-            return `Tell me about a technical challenge you faced in your role as ${experience.position} at ${experience.company}. How did you approach it?`;
+            if (questionIndex === 0) {
+              return `Tell me about a technical challenge you faced in your role as ${experience.position} at ${experience.company}. How did you approach it?`;
+            } else {
+              return `What technologies did you work with as ${experience.position} at ${experience.company}, and how did you apply them?`;
+            }
           case 'behavioral':
-            return `Can you describe a specific project or achievement from your time as ${experience.position} at ${experience.company} using the STAR method?`;
+            if (questionIndex === 0) {
+              return `Can you describe a specific project or achievement from your time as ${experience.position} at ${experience.company} using the STAR method?`;
+            } else {
+              return `Tell me about a challenging situation you faced as ${experience.position} at ${experience.company} and how you resolved it.`;
+            }
         }
       }
       
-      if (resumeData.skills?.length > 0) {
+      if (resumeData.skills?.length > 0 && questionIndex > 0) {
         const randomSkill = resumeData.skills[Math.floor(Math.random() * resumeData.skills.length)];
         
         switch (type) {
@@ -323,12 +228,12 @@ export class HuggingFaceService {
         }
       }
       
-      if (resumeData.education?.length > 0) {
+      if (resumeData.education?.length > 0 && questionIndex === 1) {
         const education = resumeData.education[0];
         return `I see you studied ${education.degree} at ${education.institution}. How has your educational background prepared you for this role?`;
       }
       
-      if (resumeData.name) {
+      if (resumeData.name && questionIndex === 0) {
         return `Thank you for sharing your resume, ${resumeData.name}. ${fallbackQuestion}`;
       }
     } catch (error) {

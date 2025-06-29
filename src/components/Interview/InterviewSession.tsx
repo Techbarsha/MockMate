@@ -14,10 +14,11 @@ import type { InterviewSettings, FeedbackItem } from '../../types';
 interface InterviewSessionProps {
   settings: InterviewSettings;
   onBack: () => void;
+  onComplete: (session: any) => void;
   resumeData?: any;
 }
 
-export default function InterviewSession({ settings, onBack, resumeData }: InterviewSessionProps) {
+export default function InterviewSession({ settings, onBack, onComplete, resumeData }: InterviewSessionProps) {
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackItem[]>([]);
@@ -45,8 +46,7 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
     speak,
     cancel: cancelSpeech,
     error: speechError,
-    testSpeech,
-    audioAnalyzer
+    testSpeech
   } = useSpeechSynthesis();
 
   const {
@@ -82,8 +82,8 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
         setInitializationStep('generating');
         console.log('Generating first question...');
         
-        // Generate and speak the first question - pass the session directly
-        const firstQuestion = await generateQuestion(session);
+        // Generate the first question
+        const firstQuestion = await generateQuestion();
         if (firstQuestion) {
           console.log('First question generated:', firstQuestion.content);
           setInitializationStep('ready');
@@ -183,9 +183,9 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
   const handleEndInterview = useCallback(async () => {
     const session = await endInterview();
     if (session) {
-      setShowFeedback(true);
+      onComplete(session);
     }
-  }, [endInterview]);
+  }, [endInterview, onComplete]);
 
   const toggleSpeaker = () => {
     setIsSpeakerMuted(!isSpeakerMuted);
@@ -225,7 +225,7 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
     }
   };
 
-  if (!isInitialized || !currentSession) {
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <motion.div
@@ -280,6 +280,32 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
             className="mt-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
           >
             Skip & Continue
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (!currentSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center bg-white rounded-xl shadow-xl p-8 max-w-md"
+        >
+          <div className="w-16 h-16 bg-gradient-to-r from-red-400 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Session Error</h2>
+          <p className="text-gray-600 mb-6">
+            There was an issue starting your interview session. Please try again.
+          </p>
+          <button
+            onClick={onBack}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Go Back
           </button>
         </motion.div>
       </div>
@@ -401,16 +427,6 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
                     <span>{isListening ? 'Listening...' : 'Ready to Listen'}</span>
                   </div>
                 </div>
-
-                {/* Audio Analysis Indicator */}
-                {audioAnalyzer && isSpeaking && (
-                  <div className="mt-4 flex items-center justify-center">
-                    <div className="flex items-center space-x-1 px-3 py-2 bg-green-50 rounded-full border border-green-200">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      <span className="text-xs text-green-700 font-medium">Real-time Lip Sync Active</span>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Transcript Panel */}

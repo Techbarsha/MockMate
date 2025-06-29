@@ -60,12 +60,14 @@ function AppContent() {
   };
 
   const handleStartInterview = (settings: IInterviewSettings, resumeData?: any) => {
+    console.log('Starting interview with settings:', settings);
     setCurrentSettings(settings);
     setResumeData(resumeData);
     navigate('/interview');
   };
 
   const handleInterviewComplete = (session: IInterviewSession) => {
+    console.log('Interview completed:', session);
     setCurrentSession(session);
     
     // Update user stats if authenticated
@@ -73,7 +75,9 @@ function AppContent() {
       const updatedProfile = {
         ...userProfile,
         totalInterviews: userProfile.totalInterviews + 1,
-        averageScore: (userProfile.averageScore + session.score) / 2,
+        averageScore: userProfile.totalInterviews === 0 
+          ? session.score 
+          : (userProfile.averageScore * userProfile.totalInterviews + session.score) / (userProfile.totalInterviews + 1),
         streak: userProfile.streak + 1
       };
       setUserProfile(updatedProfile);
@@ -267,7 +271,18 @@ function AppContent() {
                     onComplete={handleInterviewComplete}
                   />
                 ) : (
-                  <div>Loading interview...</div>
+                  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                    <div className="text-center bg-white rounded-xl shadow-xl p-8">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">No Interview Settings Found</h2>
+                      <p className="text-gray-600 mb-6">Please go back and configure your interview settings.</p>
+                      <button
+                        onClick={handleBackToSetup}
+                        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        Back to Setup
+                      </button>
+                    </div>
+                  </div>
                 )
               } 
             />
@@ -281,7 +296,18 @@ function AppContent() {
                     onStartNew={handleStartNewInterview}
                   />
                 ) : (
-                  <div>Loading results...</div>
+                  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                    <div className="text-center bg-white rounded-xl shadow-xl p-8">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">No Results Found</h2>
+                      <p className="text-gray-600 mb-6">Please complete an interview to see results.</p>
+                      <button
+                        onClick={handleBackToSetup}
+                        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        Start New Interview
+                      </button>
+                    </div>
+                  </div>
                 )
               } 
             />
