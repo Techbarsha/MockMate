@@ -154,7 +154,12 @@ export class SpeechService {
         };
 
         utterance.onerror = (error) => {
-          console.error('Speech synthesis error:', error);
+          // Handle interrupted errors as warnings since they're often benign
+          if (error.error === 'interrupted') {
+            console.warn('Speech synthesis interrupted:', error);
+          } else {
+            console.error('Speech synthesis error:', error);
+          }
           this.currentUtterance = null;
           reject(error);
         };

@@ -68,7 +68,7 @@ export class HuggingFaceService {
       const question = this.extractQuestion(generatedText, prompt);
       return question || this.getFallbackQuestion(context.type, context.resumeData);
     } catch (error) {
-      console.error('Error generating question:', error);
+      console.warn('Error generating question:', error);
       return this.getFallbackQuestion(context.type, context.resumeData);
     }
   }
