@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Settings, Download, CheckCircle, Volume2, VolumeX, Mic, Maximize2, Play, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Settings, Download, CheckCircle, Volume2, VolumeX, Mic, Maximize2, Play, RefreshCw, Pause, SkipForward } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import FaceInterviewer from '../Avatar/FaceInterviewer';
 import VoiceRecorder from './VoiceRecorder';
@@ -30,6 +30,13 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
   const [initializationStep, setInitializationStep] = useState('starting');
   const [avatarEmotion, setAvatarEmotion] = useState<'neutral' | 'happy' | 'focused' | 'encouraging'>('neutral');
   const [speechError, setSpeechError] = useState<string | null>(null);
+  
+  // New state for better pacing control
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
+  const [canProceedToNext, setCanProceedToNext] = useState(false);
+  const [showNextQuestionButton, setShowNextQuestionButton] = useState(false);
+  const [interviewPaused, setInterviewPaused] = useState(false);
+  const [responseSubmitted, setResponseSubmitted] = useState(false);
 
   const storageService = StorageService.getInstance();
 
@@ -70,12 +77,12 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       setAvatarEmotion('focused');
     } else if (isListening) {
       setAvatarEmotion('encouraging');
-    } else if (questionCount > 0) {
+    } else if (questionCount > 0 && !isWaitingForResponse) {
       setAvatarEmotion('happy');
     } else {
       setAvatarEmotion('neutral');
     }
-  }, [isSpeaking, isListening, questionCount]);
+  }, [isSpeaking, isListening, questionCount, isWaitingForResponse]);
 
   // Monitor speech synthesis errors
   useEffect(() => {
@@ -118,6 +125,10 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
           console.log('First question generated:', firstQuestion.content);
           setInitializationStep('ready');
           
+          // Mark as fully initialized first
+          setIsInitialized(true);
+          setIsWaitingForResponse(true);
+          
           // Wait a moment before speaking
           setTimeout(async () => {
             if (!isSpeakerMuted) {
@@ -125,21 +136,24 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                 console.log('Speaking first question...');
                 await speak(firstQuestion.content, settings.voiceAccent);
                 console.log('First question spoken successfully');
+                
+                // After speaking, show that user can respond
+                setIsWaitingForResponse(true);
               } catch (error) {
                 console.error('Error speaking first question:', error);
                 setSpeechError('Failed to speak question. Please check your audio settings.');
                 // Continue anyway - user can still read the question
+                setIsWaitingForResponse(true);
               }
+            } else {
+              setIsWaitingForResponse(true);
             }
-            
-            // Mark as fully initialized
-            setIsInitialized(true);
-            console.log('Interview fully initialized and ready');
-          }, 1000);
+          }, 1500); // Increased delay for better pacing
         } else {
           console.error('Failed to generate first question');
           // Still allow the interview to proceed
           setIsInitialized(true);
+          setIsWaitingForResponse(true);
         }
       } catch (error) {
         console.error('Error during interview initialization:', error);
@@ -152,24 +166,38 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     initializeInterview();
   }, [settings, resumeData, startInterview, generateQuestion, speak, isSpeakerMuted, speechReady, checkAudioPermissions]);
 
-  const handleGenerateQuestion = useCallback(async () => {
-    console.log('Generating question...');
+  const handleGenerateNextQuestion = useCallback(async () => {
+    if (interviewPaused) return;
+    
+    console.log('Generating next question...');
+    setShowNextQuestionButton(false);
+    setCanProceedToNext(false);
+    setResponseSubmitted(false);
+    
     const message = await generateQuestion();
-    if (message && !isSpeakerMuted) {
-      console.log('Speaking question:', message.content);
-      try {
-        setSpeechError(null);
-        await speak(message.content, settings.voiceAccent);
-        console.log('Question spoken successfully');
-      } catch (error) {
-        console.error('Error speaking question:', error);
-        setSpeechError('Failed to speak question. You can still read it above.');
+    if (message) {
+      setIsWaitingForResponse(true);
+      
+      if (!isSpeakerMuted) {
+        console.log('Speaking question:', message.content);
+        try {
+          setSpeechError(null);
+          await speak(message.content, settings.voiceAccent);
+          console.log('Question spoken successfully');
+        } catch (error) {
+          console.error('Error speaking question:', error);
+          setSpeechError('Failed to speak question. You can still read it above.');
+        }
       }
     }
-  }, [generateQuestion, speak, isSpeakerMuted, settings.voiceAccent]);
+  }, [generateQuestion, speak, isSpeakerMuted, settings.voiceAccent, interviewPaused]);
 
   const handleSubmitResponse = useCallback(async (response: string) => {
-    if (!currentSession) return;
+    if (!currentSession || responseSubmitted) return;
+
+    console.log('Submitting response:', response.substring(0, 50) + '...');
+    setResponseSubmitted(true);
+    setIsWaitingForResponse(false);
 
     addUserResponse(response);
     resetTranscript();
@@ -193,16 +221,21 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       }
     }
 
-    setQuestionCount(prev => prev + 1);
+    const newQuestionCount = questionCount + 1;
+    setQuestionCount(newQuestionCount);
 
     // Check if interview should end
-    if (questionCount + 1 >= maxQuestions) {
-      await handleEndInterview();
+    if (newQuestionCount >= maxQuestions) {
+      console.log('Interview completed, ending session...');
+      setTimeout(async () => {
+        await handleEndInterview();
+      }, 2000);
     } else {
-      // Generate next question
+      // Show option to proceed to next question after a delay
       setTimeout(() => {
-        handleGenerateQuestion();
-      }, 1500);
+        setCanProceedToNext(true);
+        setShowNextQuestionButton(true);
+      }, 3000); // 3 second delay before showing next question option
     }
   }, [
     currentSession,
@@ -211,15 +244,32 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     getFeedback,
     questionCount,
     maxQuestions,
-    handleGenerateQuestion
+    responseSubmitted
   ]);
 
   const handleEndInterview = useCallback(async () => {
+    console.log('Ending interview session...');
     const session = await endInterview();
     if (session) {
       onComplete(session);
     }
   }, [endInterview, onComplete]);
+
+  const handlePauseInterview = () => {
+    setInterviewPaused(!interviewPaused);
+    if (isSpeaking) {
+      cancelSpeech();
+    }
+    if (isListening) {
+      stopListening();
+    }
+  };
+
+  const handleSkipToNext = () => {
+    if (canProceedToNext) {
+      handleGenerateNextQuestion();
+    }
+  };
 
   const toggleSpeaker = () => {
     setIsSpeakerMuted(!isSpeakerMuted);
@@ -395,7 +445,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                   {settings.type.charAt(0).toUpperCase() + settings.type.slice(1)} Interview
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Question {questionCount + 1} of {maxQuestions} • AI Face Interviewer • Real-time Expressions
+                  Question {questionCount + 1} of {maxQuestions} • AI Face Interviewer • Controlled Pacing
                 </p>
               </div>
             </div>
@@ -407,6 +457,20 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                   style={{ width: `${((questionCount) / maxQuestions) * 100}%` }}
                 />
               </div>
+              
+              {/* Interview Controls */}
+              <button
+                onClick={handlePauseInterview}
+                className={`p-2 rounded-lg transition-colors ${
+                  interviewPaused 
+                    ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                    : 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                }`}
+                title={interviewPaused ? 'Resume Interview' : 'Pause Interview'}
+              >
+                {interviewPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+              </button>
+              
               <div className="flex items-center text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
                 <CheckCircle className="w-4 h-4 mr-1" />
                 AI Face
@@ -458,7 +522,39 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                   isSpeaking={isSpeaking}
                   onToggleSpeaker={toggleSpeaker}
                   isSpeakerMuted={isSpeakerMuted}
+                  disabled={interviewPaused || !isWaitingForResponse || responseSubmitted}
                 />
+                
+                {/* Interview Status */}
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Interview Status:</span>
+                    <span className={`text-sm font-semibold ${
+                      interviewPaused ? 'text-yellow-600' :
+                      isWaitingForResponse ? 'text-blue-600' :
+                      canProceedToNext ? 'text-green-600' :
+                      'text-gray-600'
+                    }`}>
+                      {interviewPaused ? 'Paused' :
+                       isWaitingForResponse ? 'Waiting for your response' :
+                       canProceedToNext ? 'Ready for next question' :
+                       'Processing...'}
+                    </span>
+                  </div>
+                  
+                  {/* Next Question Button */}
+                  {showNextQuestionButton && !interviewPaused && (
+                    <motion.button
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={handleSkipToNext}
+                      className="w-full mt-3 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+                    >
+                      <SkipForward className="w-4 h-4 mr-2" />
+                      Continue to Next Question
+                    </motion.button>
+                  )}
+                </div>
                 
                 {/* Error Messages */}
                 {(voiceError || interviewError || speechError) && (
@@ -543,12 +639,12 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
               {/* Voice Controls */}
               <button
                 onClick={isListening ? stopListening : startListening}
-                disabled={isSpeaking}
+                disabled={isSpeaking || interviewPaused || !isWaitingForResponse || responseSubmitted}
                 className={`p-4 rounded-full transition-all duration-300 ${
                   isListening
                     ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg animate-pulse'
                     : 'bg-primary-500 hover:bg-primary-600 text-white shadow-md'
-                } ${isSpeaking ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${(isSpeaking || interviewPaused || !isWaitingForResponse || responseSubmitted) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Mic className="w-6 h-6" />
               </button>
@@ -565,9 +661,35 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                 {isSpeakerMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
 
+              {/* Pause/Resume */}
+              <button
+                onClick={handlePauseInterview}
+                className={`p-3 rounded-full transition-all duration-300 ${
+                  interviewPaused 
+                    ? 'bg-green-500 hover:bg-green-600 text-white' 
+                    : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                }`}
+              >
+                {interviewPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+              </button>
+
+              {/* Next Question */}
+              {showNextQuestionButton && !interviewPaused && (
+                <button
+                  onClick={handleSkipToNext}
+                  className="p-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                >
+                  <SkipForward className="w-5 h-5" />
+                </button>
+              )}
+
               {/* Status Display */}
               <div className="text-white text-sm font-medium">
-                {isListening ? 'Listening...' : isSpeaking ? 'AI Speaking...' : 'Ready'}
+                {interviewPaused ? 'Paused' :
+                 isListening ? 'Listening...' : 
+                 isSpeaking ? 'AI Speaking...' : 
+                 isWaitingForResponse ? 'Your Turn' :
+                 'Ready'}
               </div>
 
               {/* Exit Fullscreen */}
@@ -591,13 +713,15 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
             <div className="flex space-x-3 mt-4">
               <button
                 onClick={() => handleSubmitResponse(transcript)}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                disabled={responseSubmitted}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Submit Response
               </button>
               <button
                 onClick={startListening}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                disabled={responseSubmitted}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Record Again
               </button>

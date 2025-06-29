@@ -12,6 +12,7 @@ interface VoiceRecorderProps {
   isSpeaking: boolean;
   onToggleSpeaker: () => void;
   isSpeakerMuted: boolean;
+  disabled?: boolean;
 }
 
 export default function VoiceRecorder({
@@ -23,10 +24,11 @@ export default function VoiceRecorder({
   onSubmitResponse,
   isSpeaking,
   onToggleSpeaker,
-  isSpeakerMuted
+  isSpeakerMuted,
+  disabled = false
 }: VoiceRecorderProps) {
   const handleSubmit = () => {
-    if (transcript.trim()) {
+    if (transcript.trim() && !disabled) {
       onSubmitResponse(transcript.trim());
     }
   };
@@ -47,15 +49,15 @@ export default function VoiceRecorder({
       <div className="flex items-center justify-center space-x-4">
         {/* Microphone Button */}
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={!disabled ? { scale: 1.05 } : {}}
+          whileTap={!disabled ? { scale: 0.95 } : {}}
           onClick={isListening ? onStopListening : onStartListening}
-          disabled={isSpeaking}
+          disabled={isSpeaking || disabled}
           className={`relative p-6 rounded-full transition-all duration-300 ${
             isListening
               ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg animate-pulse'
               : 'bg-primary-500 hover:bg-primary-600 text-white shadow-md'
-          } ${isSpeaking ? 'opacity-50 cursor-not-allowed' : ''}`}
+          } ${(isSpeaking || disabled) ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {isListening ? (
             <MicOff className="w-8 h-8" />
@@ -95,7 +97,9 @@ export default function VoiceRecorder({
       {/* Instructions */}
       <div className="text-center">
         <p className="text-gray-600">
-          {isListening 
+          {disabled 
+            ? 'Please wait for the interviewer to finish or for your turn'
+            : isListening 
             ? 'Listening... Speak your answer'
             : isSpeaking
             ? 'AI is speaking...'
@@ -118,18 +122,24 @@ export default function VoiceRecorder({
             
             <div className="flex space-x-3 mt-4">
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={!disabled ? { scale: 1.02 } : {}}
+                whileTap={!disabled ? { scale: 0.98 } : {}}
                 onClick={handleSubmit}
-                className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                disabled={disabled}
+                className={`px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ${
+                  disabled ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Submit Response
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={!disabled ? { scale: 1.02 } : {}}
+                whileTap={!disabled ? { scale: 0.98 } : {}}
                 onClick={onStartListening}
-                className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                disabled={disabled}
+                className={`px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors ${
+                  disabled ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Record Again
               </motion.button>
@@ -167,6 +177,15 @@ export default function VoiceRecorder({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Disabled state overlay */}
+      {disabled && (
+        <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-yellow-700 text-sm font-medium">
+            Interview controls are temporarily disabled. Please wait for your turn to respond.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
