@@ -37,9 +37,18 @@ export function useSpeechSynthesis() {
       await speechService.speak(text, voice);
       console.log('Speech completed successfully');
     } catch (err) {
-      const errorMessage = 'Failed to synthesize speech. Please check your browser settings.';
-      setError(errorMessage);
-      console.error('Speech synthesis error:', err);
+      // Check if the error is an interruption (which is normal behavior)
+      const isInterruptedError = err && typeof err === 'object' && 'error' in err && err.error === 'interrupted';
+      
+      if (isInterruptedError) {
+        // Interrupted errors are normal when speech is cancelled - just log as info
+        console.log('Speech was interrupted (normal behavior)');
+      } else {
+        // Only treat non-interruption errors as actual errors
+        const errorMessage = 'Failed to synthesize speech. Please check your browser settings.';
+        setError(errorMessage);
+        console.error('Speech synthesis error:', err);
+      }
     } finally {
       setIsSpeaking(false);
     }
