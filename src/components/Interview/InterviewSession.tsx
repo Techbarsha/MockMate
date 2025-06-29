@@ -26,6 +26,7 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
   const [maxQuestions] = useState(5);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [initializationStep, setInitializationStep] = useState('starting');
 
   const storageService = StorageService.getInstance();
 
@@ -59,22 +60,65 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
     getFeedback
   } = useInterview();
 
-  // Initialize interview
+  // Initialize interview with better error handling and progress tracking
   useEffect(() => {
     const initializeInterview = async () => {
-      console.log('Initializing interview with settings:', settings);
-      const session = startInterview(settings, resumeData);
-      if (session) {
+      try {
+        console.log('Starting interview initialization...');
+        setInitializationStep('initializing');
+        
+        // Start the interview session
+        const session = startInterview(settings, resumeData);
+        if (!session) {
+          throw new Error('Failed to create interview session');
+        }
+        
+        console.log('Interview session created successfully');
+        setInitializationStep('preparing');
+        
+        // Wait a moment for UI to settle
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        setInitializationStep('generating');
+        console.log('Generating first question...');
+        
+        // Generate and speak the first question
+        const firstQuestion = await generateQuestion();
+        if (firstQuestion) {
+          console.log('First question generated:', firstQuestion.content);
+          setInitializationStep('ready');
+          
+          // Wait a moment before speaking
+          setTimeout(async () => {
+            if (!isSpeakerMuted) {
+              try {
+                console.log('Speaking first question...');
+                await speak(firstQuestion.content, settings.voiceAccent);
+                console.log('First question spoken successfully');
+              } catch (error) {
+                console.error('Error speaking first question:', error);
+                // Continue anyway - user can still read the question
+              }
+            }
+            
+            // Mark as fully initialized
+            setIsInitialized(true);
+            console.log('Interview fully initialized and ready');
+          }, 500);
+        } else {
+          console.error('Failed to generate first question');
+          // Still allow the interview to proceed
+          setIsInitialized(true);
+        }
+      } catch (error) {
+        console.error('Error during interview initialization:', error);
+        // Show error but still allow proceeding
         setIsInitialized(true);
-        // Generate first question after a short delay
-        setTimeout(() => {
-          handleGenerateQuestion();
-        }, 2000);
       }
     };
 
     initializeInterview();
-  }, [settings, resumeData, startInterview]);
+  }, [settings, resumeData, startInterview, generateQuestion, speak, isSpeakerMuted]);
 
   const handleGenerateQuestion = useCallback(async () => {
     console.log('Generating question...');
@@ -164,6 +208,23 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
     }
   };
 
+  const getInitializationMessage = () => {
+    switch (initializationStep) {
+      case 'starting':
+        return 'Starting your interview session...';
+      case 'initializing':
+        return 'Setting up AI interviewer...';
+      case 'preparing':
+        return 'Preparing interview questions...';
+      case 'generating':
+        return 'Generating your first question...';
+      case 'ready':
+        return 'Almost ready! Preparing voice system...';
+      default:
+        return 'Initializing your interview experience...';
+    }
+  };
+
   if (!isInitialized || !currentSession) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -185,17 +246,40 @@ export default function InterviewSession({ settings, onBack, resumeData }: Inter
               <span className="font-medium">No API key required • 100% Free • Privacy-focused</span>
             </div>
           </div>
+          
           <div className="mt-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
-            <p className="mt-2 text-gray-600">Initializing your AI interviewer...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-3"></div>
+            <p className="text-gray-600 font-medium">{getInitializationMessage()}</p>
+            
+            {/* Progress indicator */}
+            <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
+              <div 
+                className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-500"
+                style={{ 
+                  width: initializationStep === 'starting' ? '20%' :
+                         initializationStep === 'initializing' ? '40%' :
+                         initializationStep === 'preparing' ? '60%' :
+                         initializationStep === 'generating' ? '80%' :
+                         initializationStep === 'ready' ? '95%' : '100%'
+                }}
+              />
+            </div>
           </div>
           
           {/* Test Speech Button */}
           <button
             onClick={handleTestSpeech}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+            className="mt-6 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
           >
             Test Speech System
+          </button>
+
+          {/* Skip initialization button for debugging */}
+          <button
+            onClick={() => setIsInitialized(true)}
+            className="mt-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+          >
+            Skip & Continue
           </button>
         </motion.div>
       </div>
