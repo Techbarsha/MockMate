@@ -50,7 +50,8 @@ export class HuggingFaceService {
         
         const errorMessage = response.statusText || 
           `HTTP ${response.status} - This could be due to network issues, server unavailability, or API rate limits`;
-        throw new Error(`Hugging Face API error: ${errorMessage}`);
+        console.warn(`Hugging Face API error: ${errorMessage}. Using fallback questions.`);
+        return this.getFallbackQuestion(context.type, context.resumeData);
       }
 
       const data = await response.json();
