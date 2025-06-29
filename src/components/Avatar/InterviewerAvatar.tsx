@@ -1,47 +1,21 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Html, Text } from '@react-three/drei';
+import { OrbitControls, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface AvatarModelProps {
   isSpeaking: boolean;
   avatarStyle: string;
-  audioAnalyzer?: AnalyserNode;
 }
 
-function AvatarModel({ isSpeaking, avatarStyle, audioAnalyzer }: AvatarModelProps) {
+function AvatarModel({ isSpeaking, avatarStyle }: AvatarModelProps) {
   const meshRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Mesh>(null);
   const mouthRef = useRef<THREE.Mesh>(null);
   const eyesRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const [blinkTimer, setBlinkTimer] = useState(0);
-  const [mouthMovement, setMouthMovement] = useState(0);
   const { viewport } = useThree();
-
-  // Audio analysis for lip sync
-  useEffect(() => {
-    if (audioAnalyzer && isSpeaking) {
-      const dataArray = new Uint8Array(audioAnalyzer.frequencyBinCount);
-      
-      const analyzeAudio = () => {
-        if (isSpeaking) {
-          audioAnalyzer.getByteFrequencyData(dataArray);
-          
-          // Calculate average volume for mouth movement
-          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-          const normalizedVolume = average / 255;
-          
-          setMouthMovement(normalizedVolume);
-          requestAnimationFrame(analyzeAudio);
-        }
-      };
-      
-      analyzeAudio();
-    } else {
-      setMouthMovement(0);
-    }
-  }, [audioAnalyzer, isSpeaking]);
 
   // Calculate responsive scale based on viewport
   const avatarScale = Math.min(viewport.width / 4, viewport.height / 6, 1.5);
@@ -65,16 +39,14 @@ function AvatarModel({ isSpeaking, avatarStyle, audioAnalyzer }: AvatarModelProp
       }
     }
 
-    // Mouth animation based on audio or speaking state
+    // Mouth animation based on speaking state
     if (mouthRef.current) {
       if (isSpeaking) {
-        // Use audio analysis if available, otherwise use sine wave
-        const mouthScale = audioAnalyzer 
-          ? 1 + (mouthMovement * 0.4)
-          : 1 + Math.sin(state.clock.elapsedTime * 8) * 0.15;
+        // Use sine wave for mouth movement
+        const mouthScale = 1 + Math.sin(state.clock.elapsedTime * 8) * 0.15;
         
         mouthRef.current.scale.setScalar(mouthScale);
-        mouthRef.current.position.z = 0.45 + (mouthMovement * 0.03);
+        mouthRef.current.position.z = 0.45 + (Math.sin(state.clock.elapsedTime * 8) * 0.03);
       } else {
         mouthRef.current.scale.setScalar(1);
         mouthRef.current.position.z = 0.45;
@@ -292,28 +264,6 @@ interface InterviewerAvatarProps {
 }
 
 export default function InterviewerAvatar({ isSpeaking, avatarStyle, className = '' }: InterviewerAvatarProps) {
-  const [audioAnalyzer, setAudioAnalyzer] = useState<AnalyserNode | null>(null);
-
-  // Set up audio analysis for lip sync
-  useEffect(() => {
-    if (isSpeaking && 'speechSynthesis' in window) {
-      try {
-        // Create audio context for analysis
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const analyzer = audioContext.createAnalyser();
-        analyzer.fftSize = 256;
-        
-        setAudioAnalyzer(analyzer);
-        
-        return () => {
-          audioContext.close();
-        };
-      } catch (error) {
-        console.log('Audio analysis not available:', error);
-      }
-    }
-  }, [isSpeaking]);
-
   return (
     <div className={`relative w-full h-full ${className}`}>
       <Canvas
@@ -366,7 +316,6 @@ export default function InterviewerAvatar({ isSpeaking, avatarStyle, className =
         <AvatarModel 
           isSpeaking={isSpeaking} 
           avatarStyle={avatarStyle}
-          audioAnalyzer={audioAnalyzer || undefined}
         />
         
         {/* Enhanced ground plane for shadows */}
@@ -466,7 +415,7 @@ export default function InterviewerAvatar({ isSpeaking, avatarStyle, className =
             {avatarStyle.charAt(0).toUpperCase() + avatarStyle.slice(1)} Interviewer
           </div>
           <div className="text-white/80 text-sm font-medium">
-            AI-Powered • Real-time Lip Sync
+            AI-Powered • Animated Speech
           </div>
           <div className="text-white/60 text-xs mt-1">
             Full Frame Display • Interactive 3D
@@ -492,18 +441,6 @@ export default function InterviewerAvatar({ isSpeaking, avatarStyle, className =
               ))}
             </div>
           </div>
-          
-          {/* Lip sync indicator */}
-          {audioAnalyzer && (
-            <div className="absolute top-1/2 right-8 transform -translate-y-1/2">
-              <div className="bg-green-500/20 backdrop-blur-lg rounded-full px-4 py-2 border border-green-400/30">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
-                  <span className="text-green-200 text-sm font-medium">Lip Sync</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

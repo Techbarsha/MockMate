@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Header from './components/Common/Header';
 import InterviewSettings from './components/Settings/InterviewSettings';
@@ -15,10 +16,8 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { StorageService } from './services/storage';
 import type { InterviewSettings as IInterviewSettings, InterviewSession as IInterviewSession, UserProfile } from './types';
 
-type AppState = 'home' | 'about' | 'signin' | 'signup' | 'loading' | 'setup' | 'interview' | 'results';
-
 function AppContent() {
-  const [appState, setAppState] = useState<AppState>('loading');
+  const [isLoading, setIsLoading] = useState(true);
   const [currentSettings, setCurrentSettings] = useState<IInterviewSettings | null>(null);
   const [currentSession, setCurrentSession] = useState<IInterviewSession | null>(null);
   const [resumeData, setResumeData] = useState<any>(null);
@@ -27,6 +26,8 @@ function AppContent() {
   const [isChatBotOpen, setIsChatBotOpen] = useState(false);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
 
+  const navigate = useNavigate();
+  const location = useLocation();
   const storageService = StorageService.getInstance();
 
   useEffect(() => {
@@ -41,7 +42,7 @@ function AppContent() {
 
       // Simulate loading
       setTimeout(() => {
-        setAppState('home');
+        setIsLoading(false);
       }, 1500);
     };
 
@@ -51,16 +52,16 @@ function AppContent() {
   const handleStartPractice = () => {
     // Check if user is authenticated
     if (!isAuthenticated) {
-      setAppState('signup');
+      navigate('/signup');
     } else {
-      setAppState('setup');
+      navigate('/setup');
     }
   };
 
   const handleStartInterview = (settings: IInterviewSettings, resumeData?: any) => {
     setCurrentSettings(settings);
     setResumeData(resumeData);
-    setAppState('interview');
+    navigate('/interview');
   };
 
   const handleInterviewComplete = (session: IInterviewSession) => {
@@ -78,26 +79,26 @@ function AppContent() {
       storageService.saveUserProfile(updatedProfile);
     }
     
-    setAppState('results');
+    navigate('/results');
   };
 
   const handleBackToHome = () => {
     setCurrentSettings(null);
     setCurrentSession(null);
     setResumeData(null);
-    setAppState('home');
+    navigate('/');
   };
 
   const handleBackToSetup = () => {
     setCurrentSettings(null);
     setCurrentSession(null);
     setResumeData(null);
-    setAppState('setup');
+    navigate('/setup');
   };
 
   const handleStartNewInterview = () => {
     setCurrentSession(null);
-    setAppState('setup');
+    navigate('/setup');
   };
 
   const handleSignIn = (email: string, password: string) => {
@@ -116,7 +117,7 @@ function AppContent() {
     setUserProfile(profile);
     setIsAuthenticated(true);
     storageService.saveUserProfile(profile);
-    setAppState('setup'); // Go directly to setup after sign in
+    navigate('/setup'); // Go directly to setup after sign in
   };
 
   const handleSignUp = (name: string, email: string, password: string) => {
@@ -135,7 +136,7 @@ function AppContent() {
     setUserProfile(profile);
     setIsAuthenticated(true);
     storageService.saveUserProfile(profile);
-    setAppState('setup'); // Go directly to setup after sign up
+    navigate('/setup'); // Go directly to setup after sign up
   };
 
   const handleProfileUpdate = (updatedProfile: UserProfile) => {
@@ -146,7 +147,7 @@ function AppContent() {
     if (isAuthenticated && userProfile) {
       setIsProfileSettingsOpen(true);
     } else {
-      setAppState('signin');
+      navigate('/signin');
     }
   };
 
@@ -157,116 +158,125 @@ function AppContent() {
     setIsProfileSettingsOpen(false);
     
     // Navigate back to home
-    setAppState('home');
+    navigate('/');
   };
 
-  const renderContent = () => {
-    switch (appState) {
-      case 'loading':
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center"
-            >
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                className="w-20 h-20 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl"
-              >
-                <span className="text-3xl">🤖</span>
-              </motion.div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2">MockMate</h1>
-              <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">AI-Powered Interview Coach</p>
-              <LoadingSpinner text="Initializing your interview experience..." />
-            </motion.div>
-          </div>
-        );
-
-      case 'home':
-        return (
-          <HomePage
-            onStartPractice={handleStartPractice}
-            onSignIn={() => setAppState('signin')}
-            onSignUp={() => setAppState('signup')}
-            onAbout={() => setAppState('about')}
-          />
-        );
-
-      case 'about':
-        return (
-          <AboutPage onBack={handleBackToHome} />
-        );
-
-      case 'signin':
-        return (
-          <SignInPage
-            onBack={handleBackToHome}
-            onSignIn={handleSignIn}
-          />
-        );
-
-      case 'signup':
-        return (
-          <SignUpPage
-            onBack={handleBackToHome}
-            onSignUp={handleSignUp}
-          />
-        );
-
-      case 'setup':
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-            <Header 
-              userProfile={userProfile} 
-              onProfileClick={handleProfileClick}
-            />
-            <div className="py-12">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <InterviewSettings
-                  onStartInterview={handleStartInterview}
-                  onResumeUpload={setResumeData}
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'interview':
-        return currentSettings ? (
-          <InterviewSession
-            settings={currentSettings}
-            resumeData={resumeData}
-            onBack={handleBackToSetup}
-          />
-        ) : null;
-
-      case 'results':
-        return currentSession ? (
-          <ResultsPage
-            session={currentSession}
-            onBack={handleBackToSetup}
-            onStartNew={handleStartNewInterview}
-          />
-        ) : null;
-
-      default:
-        return null;
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+            className="w-20 h-20 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl"
+          >
+            <span className="text-3xl">🤖</span>
+          </motion.div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2">MockMate</h1>
+          <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">AI-Powered Interview Coach</p>
+          <LoadingSpinner text="Initializing your interview experience..." />
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
       <AnimatePresence mode="wait">
         <motion.div
-          key={appState}
+          key={location.pathname}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
         >
-          {renderContent()}
+          <Routes>
+            <Route 
+              path="/" 
+              element={
+                <HomePage
+                  onStartPractice={handleStartPractice}
+                  onSignIn={() => navigate('/signin')}
+                  onSignUp={() => navigate('/signup')}
+                  onAbout={() => navigate('/about')}
+                />
+              } 
+            />
+            <Route 
+              path="/about" 
+              element={<AboutPage onBack={handleBackToHome} />} 
+            />
+            <Route 
+              path="/signin" 
+              element={
+                <SignInPage
+                  onBack={handleBackToHome}
+                  onSignIn={handleSignIn}
+                />
+              } 
+            />
+            <Route 
+              path="/signup" 
+              element={
+                <SignUpPage
+                  onBack={handleBackToHome}
+                  onSignUp={handleSignUp}
+                />
+              } 
+            />
+            <Route 
+              path="/setup" 
+              element={
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+                  <Header 
+                    userProfile={userProfile} 
+                    onProfileClick={handleProfileClick}
+                  />
+                  <div className="py-12">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                      <InterviewSettings
+                        onStartInterview={handleStartInterview}
+                        onResumeUpload={setResumeData}
+                      />
+                    </div>
+                  </div>
+                </div>
+              } 
+            />
+            <Route 
+              path="/interview" 
+              element={
+                currentSettings ? (
+                  <InterviewSession
+                    settings={currentSettings}
+                    resumeData={resumeData}
+                    onBack={handleBackToSetup}
+                    onComplete={handleInterviewComplete}
+                  />
+                ) : (
+                  <div>Loading interview...</div>
+                )
+              } 
+            />
+            <Route 
+              path="/results" 
+              element={
+                currentSession ? (
+                  <ResultsPage
+                    session={currentSession}
+                    onBack={handleBackToSetup}
+                    onStartNew={handleStartNewInterview}
+                  />
+                ) : (
+                  <div>Loading results...</div>
+                )
+              } 
+            />
+          </Routes>
         </motion.div>
       </AnimatePresence>
 

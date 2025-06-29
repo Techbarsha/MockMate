@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, Bot, CheckCircle, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Footer from '../Common/Footer';
@@ -17,6 +18,7 @@ export default function SignUpPage({ onBack, onSignUp }: SignUpPageProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,9 +43,7 @@ export default function SignUpPage({ onBack, onSignUp }: SignUpPageProps) {
   };
 
   const handleSignInRedirect = () => {
-    // Navigate to sign in page by changing the URL
-    window.history.pushState({}, '', '/signin');
-    window.location.reload();
+    navigate('/signin');
   };
 
   return (
