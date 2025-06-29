@@ -9,6 +9,7 @@ import HomePage from './components/Pages/HomePage';
 import AboutPage from './components/Pages/AboutPage';
 import SignInPage from './components/Auth/SignInPage';
 import SignUpPage from './components/Auth/SignUpPage';
+import ForgotPasswordPage from './components/Auth/ForgotPasswordPage';
 import LoadingSpinner from './components/Common/LoadingSpinner';
 import ChatBot from './components/Chat/ChatBot';
 import ProfileSettings from './components/Settings/ProfileSettings';
@@ -225,6 +226,14 @@ function AppContent() {
                 <SignUpPage
                   onBack={handleBackToHome}
                   onSignUp={handleSignUp}
+                />
+              } 
+            />
+            <Route 
+              path="/forgot-password" 
+              element={
+                <ForgotPasswordPage
+                  onBack={() => navigate('/signin')}
                 />
               } 
             />
