@@ -2,12 +2,14 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
+import FemaleInterviewer from './FemaleInterviewer';
 
 interface FaceInterviewerProps {
   isSpeaking: boolean;
   avatarStyle: string;
   emotion?: 'neutral' | 'happy' | 'focused' | 'encouraging';
   className?: string;
+  gender?: 'male' | 'female';
 }
 
 function ProfessionalMaleAvatar({ isSpeaking, avatarStyle, emotion = 'neutral' }: { 
@@ -423,7 +425,8 @@ export default function FaceInterviewer({
   isSpeaking, 
   avatarStyle, 
   emotion = 'neutral', 
-  className = '' 
+  className = '',
+  gender = 'female' // Default to female to match the image
 }: FaceInterviewerProps) {
   const [currentEmotion, setCurrentEmotion] = useState(emotion);
 
@@ -435,6 +438,18 @@ export default function FaceInterviewer({
       setCurrentEmotion(emotion);
     }
   }, [isSpeaking, emotion]);
+
+  // Choose avatar based on gender preference
+  if (gender === 'female') {
+    return (
+      <FemaleInterviewer
+        isSpeaking={isSpeaking}
+        avatarStyle={avatarStyle}
+        emotion={currentEmotion}
+        className={className}
+      />
+    );
+  }
 
   return (
     <div className={`relative w-full h-full ${className}`}>
