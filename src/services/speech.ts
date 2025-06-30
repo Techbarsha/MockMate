@@ -197,6 +197,9 @@ export class SpeechService {
     // Always stop first to ensure clean state
     await this.stopListening();
 
+    // Add delay to allow browser to fully reset recognition state
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     try {
       console.log('Restarting speech recognition...');
       this.recognition.start();
@@ -217,6 +220,9 @@ export class SpeechService {
     // Always stop any existing session first - this is the key fix
     console.log('Ensuring any previous recognition session is stopped...');
     await this.stopListening();
+
+    // Add delay to allow browser to fully reset recognition state
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     this.onResultCallback = onResult;
     this.onEndCallback = onEnd;
