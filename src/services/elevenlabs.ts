@@ -2,9 +2,12 @@ export class ElevenLabsService {
   private apiKey: string;
   private baseUrl = 'https://api.elevenlabs.io/v1';
   private websocket: WebSocket | null = null;
+  private audioContext: AudioContext | null = null;
+  private currentSource: AudioBufferSourceNode | null = null;
 
   constructor() {
     this.apiKey = this.getApiKey();
+    this.initializeAudioContext();
   }
 
   private getApiKey(): string {
@@ -15,6 +18,20 @@ export class ElevenLabsService {
     if (storedKey) return storedKey;
     
     return '';
+  }
+
+  private async initializeAudioContext() {
+    try {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+      
+      console.log('ElevenLabs audio context initialized');
+    } catch (error) {
+      console.error('Error initializing audio context:', error);
+    }
   }
 
   async getVoices(): Promise<Array<{
@@ -37,7 +54,8 @@ export class ElevenLabsService {
       });
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -71,6 +89,8 @@ export class ElevenLabsService {
     }
 
     try {
+      console.log('Generating speech with ElevenLabs:', text.substring(0, 50) + '...');
+      
       const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
         method: 'POST',
         headers: {
@@ -81,19 +101,22 @@ export class ElevenLabsService {
           text,
           model_id: options.modelId || 'eleven_monolingual_v1',
           voice_settings: {
-            stability: options.stability || 0.5,
-            similarity_boost: options.similarityBoost || 0.5,
-            style: options.style || 0.0,
-            use_speaker_boost: options.useSpeakerBoost || true
+            stability: options.stability ?? 0.5,
+            similarity_boost: options.similarityBoost ?? 0.75,
+            style: options.style ?? 0.0,
+            use_speaker_boost: options.useSpeakerBoost ?? true
           }
         })
       });
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
       }
 
-      return await response.arrayBuffer();
+      const audioBuffer = await response.arrayBuffer();
+      console.log('ElevenLabs audio generated successfully, size:', audioBuffer.byteLength);
+      return audioBuffer;
     } catch (error) {
       console.error('Error with text-to-speech:', error);
       throw error;
@@ -103,22 +126,51 @@ export class ElevenLabsService {
   async playAudio(audioBuffer: ArrayBuffer): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (!this.audioContext) {
+          throw new Error('Audio context not initialized');
+        }
+
+        // Stop any currently playing audio
+        this.stopCurrentAudio();
         
-        audioContext.decodeAudioData(audioBuffer)
+        this.audioContext.decodeAudioData(audioBuffer.slice(0))
           .then(decodedData => {
-            const source = audioContext.createBufferSource();
+            if (!this.audioContext) {
+              throw new Error('Audio context lost during decoding');
+            }
+
+            const source = this.audioContext.createBufferSource();
             source.buffer = decodedData;
-            source.connect(audioContext.destination);
+            source.connect(this.audioContext.destination);
             
-            source.onended = () => resolve();
+            this.currentSource = source;
+            
+            source.onended = () => {
+              this.currentSource = null;
+              resolve();
+            };
+            
             source.start();
+            console.log('ElevenLabs audio playback started');
           })
           .catch(reject);
       } catch (error) {
+        console.error('Error playing audio:', error);
         reject(error);
       }
     });
+  }
+
+  stopCurrentAudio(): void {
+    if (this.currentSource) {
+      try {
+        this.currentSource.stop();
+        this.currentSource = null;
+        console.log('ElevenLabs audio stopped');
+      } catch (error) {
+        console.error('Error stopping audio:', error);
+      }
+    }
   }
 
   async speakText(
@@ -133,6 +185,15 @@ export class ElevenLabsService {
     }
   ): Promise<void> {
     try {
+      // Ensure audio context is ready
+      if (!this.audioContext) {
+        await this.initializeAudioContext();
+      }
+
+      if (this.audioContext?.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+
       const audioBuffer = await this.textToSpeech(text, voiceId, options);
       await this.playAudio(audioBuffer);
     } catch (error) {
@@ -172,8 +233,8 @@ export class ElevenLabsService {
       const config = {
         text: ' ',
         voice_settings: {
-          stability: options.stability || 0.5,
-          similarity_boost: options.similarityBoost || 0.5
+          stability: options.stability ?? 0.5,
+          similarity_boost: options.similarityBoost ?? 0.75
         },
         xi_api_key: this.apiKey
       };
@@ -226,6 +287,54 @@ export class ElevenLabsService {
     return !!this.apiKey;
   }
 
+  // Get recommended voices for interview scenarios
+  getRecommendedVoices(): Array<{
+    voiceId: string;
+    name: string;
+    description: string;
+    category: string;
+    recommended: boolean;
+  }> {
+    // These are popular ElevenLabs voices good for professional scenarios
+    return [
+      {
+        voiceId: 'EXAVITQu4vr4xnSDxMaL', // Bella
+        name: 'Bella',
+        description: 'Professional, warm female voice perfect for interviews',
+        category: 'premade',
+        recommended: true
+      },
+      {
+        voiceId: '21m00Tcm4TlvDq8ikWAM', // Rachel
+        name: 'Rachel',
+        description: 'Clear, articulate female voice with professional tone',
+        category: 'premade',
+        recommended: true
+      },
+      {
+        voiceId: 'AZnzlk1XvdvUeBnXmlld', // Domi
+        name: 'Domi',
+        description: 'Confident, professional female voice',
+        category: 'premade',
+        recommended: true
+      },
+      {
+        voiceId: 'VR6AewLTigWG4xSOukaG', // Arnold
+        name: 'Arnold',
+        description: 'Professional male voice with authority',
+        category: 'premade',
+        recommended: false
+      },
+      {
+        voiceId: 'pNInz6obpgDQGcFmaJgB', // Adam
+        name: 'Adam',
+        description: 'Deep, professional male voice',
+        category: 'premade',
+        recommended: false
+      }
+    ];
+  }
+
   // Voice cloning capabilities
   async cloneVoice(
     name: string,
@@ -260,7 +369,8 @@ export class ElevenLabsService {
       });
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -271,6 +381,60 @@ export class ElevenLabsService {
       };
     } catch (error) {
       console.error('Error cloning voice:', error);
+      throw error;
+    }
+  }
+
+  // Test the API connection and voice
+  async testVoice(voiceId?: string): Promise<boolean> {
+    try {
+      const testVoiceId = voiceId || 'EXAVITQu4vr4xnSDxMaL'; // Bella voice
+      const testText = 'Hello, this is a test of the ElevenLabs voice synthesis system.';
+      
+      await this.speakText(testText, testVoiceId, {
+        stability: 0.5,
+        similarityBoost: 0.75,
+        style: 0.0,
+        useSpeakerBoost: true
+      });
+      
+      console.log('ElevenLabs voice test completed successfully');
+      return true;
+    } catch (error) {
+      console.error('ElevenLabs voice test failed:', error);
+      return false;
+    }
+  }
+
+  // Get usage statistics
+  async getUsageStats(): Promise<{
+    characterCount: number;
+    characterLimit: number;
+    canMakeRequest: boolean;
+  }> {
+    if (!this.apiKey) {
+      throw new Error('ElevenLabs API key not configured');
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/user`, {
+        headers: {
+          'xi-api-key': this.apiKey,
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`ElevenLabs API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        characterCount: data.subscription.character_count,
+        characterLimit: data.subscription.character_limit,
+        canMakeRequest: data.subscription.can_make_request
+      };
+    } catch (error) {
+      console.error('Error fetching usage stats:', error);
       throw error;
     }
   }
