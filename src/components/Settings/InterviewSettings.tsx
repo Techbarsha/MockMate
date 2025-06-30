@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Zap, Key, Save, Sparkles } from 'lucide-react';
+import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Zap, Key, Save, Sparkles, Video, Mic } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AvatarSelector from '../Avatar/AvatarSelector';
+import AIServiceSettings from './AIServiceSettings';
 import Footer from '../Common/Footer';
 import { INTERVIEW_TYPES, DIFFICULTY_LEVELS, VOICE_ACCENTS } from '../../utils/constants';
 import { StorageService } from '../../services/storage';
@@ -10,10 +11,15 @@ import type { InterviewSettings } from '../../types';
 
 interface InterviewSettingsProps {
   onStartInterview: (settings: InterviewSettings, resumeData?: any) => void;
+  onStartTavusInterview?: (settings: InterviewSettings, resumeData?: any) => void;
   onResumeUpload?: (resumeData: any) => void;
 }
 
-export default function InterviewSettings({ onStartInterview, onResumeUpload }: InterviewSettingsProps) {
+export default function InterviewSettings({ 
+  onStartInterview, 
+  onStartTavusInterview,
+  onResumeUpload 
+}: InterviewSettingsProps) {
   const [settings, setSettings] = useState<InterviewSettings>({
     type: 'hr',
     difficulty: 'mid',
@@ -23,13 +29,8 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
   });
 
   const [resumeData, setResumeData] = useState<any>(null);
-  const [geminiApiKey, setGeminiApiKey] = useState<string>(
-    StorageService.getInstance().getGeminiApiKey() || ''
-  );
-  const [showApiKeySection, setShowApiKeySection] = useState(false);
-  const [apiKeySaved, setApiKeySaved] = useState(false);
-
-  const geminiService = new GeminiService();
+  const [showAISettings, setShowAISettings] = useState(false);
+  const [interviewMode, setInterviewMode] = useState<'standard' | 'tavus'>('standard');
 
   const handleSettingChange = <K extends keyof InterviewSettings>(
     key: K,
@@ -39,7 +40,11 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
   };
 
   const handleStartInterview = () => {
-    onStartInterview(settings, resumeData);
+    if (interviewMode === 'tavus' && onStartTavusInterview) {
+      onStartTavusInterview(settings, resumeData);
+    } else {
+      onStartInterview(settings, resumeData);
+    }
   };
 
   const handleResumeUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,12 +78,10 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
     }
   };
 
-  const handleSaveApiKey = () => {
-    StorageService.getInstance().saveGeminiApiKey(geminiApiKey);
-    geminiService.saveApiKey(geminiApiKey);
-    setApiKeySaved(true);
-    setTimeout(() => setApiKeySaved(false), 2000);
-  };
+  // Check if AI services are configured
+  const hasTavusKey = !!localStorage.getItem('tavus_api_key');
+  const hasElevenLabsKey = !!localStorage.getItem('elevenlabs_api_key');
+  const hasGeminiKey = !!StorageService.getInstance().getGeminiApiKey();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col">
@@ -92,86 +95,88 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
           >
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Customize Your AI Interview</h2>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              Configure your realistic interview experience with Gemini AI
+              Choose between standard AI or advanced Tavus + ElevenLabs experience
             </p>
             
-            {/* Gemini AI Badge */}
-            <div className="mt-4">
-              <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-700">
-                <Sparkles className="w-5 h-5 mr-2" />
-                <span className="font-semibold">Powered by Google Gemini AI</span>
-                <Zap className="w-4 h-4 ml-2 text-yellow-500" />
+            {/* Interview Mode Selection */}
+            <div className="mt-6 flex justify-center">
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-2 shadow-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setInterviewMode('standard')}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                      interviewMode === 'standard'
+                        ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Sparkles className="w-5 h-5" />
+                      <span>Standard AI</span>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => setInterviewMode('tavus')}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                      interviewMode === 'tavus'
+                        ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white shadow-lg'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Video className="w-5 h-5" />
+                      <span>Tavus + ElevenLabs</span>
+                    </div>
+                  </button>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                Advanced AI for realistic interviews • Intelligent question generation • Personalized feedback
-              </p>
-              <button
-                onClick={() => setShowApiKeySection(!showApiKeySection)}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mt-1 underline"
-              >
-                {showApiKeySection ? 'Hide' : 'Show'} Gemini API key settings
-              </button>
             </div>
-          </motion.div>
 
-          {/* Gemini API Key Section */}
-          {showApiKeySection && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-purple-50 dark:bg-purple-900/30 rounded-xl border border-purple-200 dark:border-purple-700 p-6"
-            >
-              <div className="flex items-center mb-4">
-                <Key className="w-5 h-5 text-purple-500 mr-2" />
-                <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-300">Gemini API Key</h3>
+            {/* Mode Description */}
+            <div className="mt-4">
+              {interviewMode === 'standard' ? (
+                <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-700">
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  <span className="font-semibold">Standard AI with 3D Avatar & Browser TTS</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/30 dark:to-teal-900/30 text-green-700 dark:text-green-300 rounded-full border border-green-200 dark:border-green-700">
+                  <Video className="w-4 h-4 mr-2" />
+                  <Mic className="w-4 h-4 mr-2" />
+                  <span className="font-semibold">Real-time Video AI + Ultra-realistic Voice</span>
+                </div>
+              )}
+            </div>
+
+            {/* AI Services Status */}
+            {interviewMode === 'tavus' && (
+              <div className="mt-4 flex justify-center">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center space-x-6 text-sm">
+                    <div className={`flex items-center ${hasTavusKey ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${hasTavusKey ? 'bg-green-500' : 'bg-red-500'}`} />
+                      Tavus API
+                    </div>
+                    <div className={`flex items-center ${hasElevenLabsKey ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${hasElevenLabsKey ? 'bg-green-500' : 'bg-red-500'}`} />
+                      ElevenLabs API
+                    </div>
+                    <div className={`flex items-center ${hasGeminiKey ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${hasGeminiKey ? 'bg-green-500' : 'bg-red-500'}`} />
+                      Gemini API
+                    </div>
+                    <button
+                      onClick={() => setShowAISettings(true)}
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      Configure APIs
+                    </button>
+                  </div>
+                </div>
               </div>
-              <p className="text-sm text-purple-800 dark:text-purple-300 mb-4">
-                Add your Google Gemini API key for enhanced AI-powered interviews with realistic question generation and intelligent feedback.
-                Without an API key, the app will use fallback questions.
-              </p>
-              <div className="flex gap-3">
-                <input
-                  type="password"
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="flex-1 px-4 py-2 border border-purple-300 dark:border-purple-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                />
-                <button
-                  onClick={handleSaveApiKey}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
-                    apiKeySaved
-                      ? 'bg-green-500 text-white'
-                      : 'bg-purple-500 text-white hover:bg-purple-600'
-                  }`}
-                >
-                  {apiKeySaved ? (
-                    <>
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Saved
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-1" />
-                      Save
-                    </>
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
-                Get your free API key at{' '}
-                <a
-                  href="https://makersuite.google.com/app/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-purple-800 dark:hover:text-purple-300"
-                >
-                  Google AI Studio
-                </a>
-              </p>
-            </motion.div>
-          )}
+            )}
+          </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Column - Settings */}
@@ -275,29 +280,31 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
                     </div>
                   </div>
 
-                  {/* Voice Accent */}
-                  <div>
-                    <div className="flex items-center mb-3">
-                      <Globe className="w-5 h-5 text-primary-500 mr-2" />
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Accent</h3>
+                  {/* Voice Accent - Only for standard mode */}
+                  {interviewMode === 'standard' && (
+                    <div>
+                      <div className="flex items-center mb-3">
+                        <Globe className="w-5 h-5 text-primary-500 mr-2" />
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Accent</h3>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {Object.entries(VOICE_ACCENTS).map(([key, accent]) => (
+                          <button
+                            key={key}
+                            onClick={() => handleSettingChange('voiceAccent', key as any)}
+                            className={`p-3 rounded-lg border text-center transition-colors ${
+                              settings.voiceAccent === key
+                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            <div className="text-xl mb-1">{accent.flag}</div>
+                            <div className="text-sm font-medium">{accent.label}</div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {Object.entries(VOICE_ACCENTS).map(([key, accent]) => (
-                        <button
-                          key={key}
-                          onClick={() => handleSettingChange('voiceAccent', key as any)}
-                          className={`p-3 rounded-lg border text-center transition-colors ${
-                            settings.voiceAccent === key
-                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-                          }`}
-                        >
-                          <div className="text-xl mb-1">{accent.flag}</div>
-                          <div className="text-sm font-medium">{accent.label}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </motion.div>
 
@@ -338,18 +345,20 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
 
             {/* Right Column - Avatar & Start */}
             <div className="space-y-6">
-              {/* Avatar Selection */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
-              >
-                <AvatarSelector
-                  selectedStyle={settings.avatarStyle}
-                  onStyleChange={(style) => handleSettingChange('avatarStyle', style)}
-                />
-              </motion.div>
+              {/* Avatar Selection - Only for standard mode */}
+              {interviewMode === 'standard' && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+                >
+                  <AvatarSelector
+                    selectedStyle={settings.avatarStyle}
+                    onStyleChange={(style) => handleSettingChange('avatarStyle', style)}
+                  />
+                </motion.div>
+              )}
 
               {/* Start Interview Button */}
               <motion.div
@@ -360,21 +369,52 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
               >
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ready to Start?</h3>
+                  
+                  {interviewMode === 'tavus' && (!hasTavusKey || !hasElevenLabsKey) && (
+                    <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                      <p className="text-yellow-800 dark:text-yellow-300 text-sm mb-2">
+                        Configure Tavus and ElevenLabs APIs for the full experience
+                      </p>
+                      <button
+                        onClick={() => setShowAISettings(true)}
+                        className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300 font-medium text-sm"
+                      >
+                        Configure APIs →
+                      </button>
+                    </div>
+                  )}
+                  
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleStartInterview}
-                    className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
+                    className={`w-full px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center ${
+                      interviewMode === 'tavus'
+                        ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white'
+                        : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
+                    }`}
                   >
                     <Play className="w-6 h-6 mr-2" />
-                    Start AI Interview
+                    {interviewMode === 'tavus' ? 'Start Tavus Interview' : 'Start AI Interview'}
                   </motion.button>
+                  
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
                     Your session will be {settings.duration} minutes of {settings.type} questions
                   </p>
-                  <div className="flex items-center justify-center mt-2 text-xs text-purple-600 dark:text-purple-400">
-                    <Sparkles className="w-3 h-3 mr-1" />
-                    <span>Powered by Gemini AI</span>
+                  
+                  <div className="flex items-center justify-center mt-2 text-xs">
+                    {interviewMode === 'tavus' ? (
+                      <div className="flex items-center text-green-600 dark:text-green-400">
+                        <Video className="w-3 h-3 mr-1" />
+                        <Mic className="w-3 h-3 mr-1" />
+                        <span>Powered by Tavus + ElevenLabs</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-purple-600 dark:text-purple-400">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        <span>Powered by Gemini AI</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -386,20 +426,40 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
                 transition={{ delay: 0.7 }}
                 className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 rounded-xl border border-purple-200 dark:border-purple-700 p-6"
               >
-                <h4 className="font-semibold text-purple-900 dark:text-purple-300 mb-3">💡 AI Interview Tips</h4>
+                <h4 className="font-semibold text-purple-900 dark:text-purple-300 mb-3">
+                  💡 {interviewMode === 'tavus' ? 'Tavus Interview Tips' : 'AI Interview Tips'}
+                </h4>
                 <ul className="text-sm text-purple-800 dark:text-purple-400 space-y-2">
-                  <li>• Find a quiet space with good microphone access</li>
-                  <li>• Use Chrome or Edge for best voice recognition</li>
-                  <li>• Speak clearly and at a moderate pace</li>
-                  <li>• Take your time to think before responding</li>
-                  <li>• AI will adapt questions based on your responses</li>
-                  <li>• Get detailed feedback powered by Gemini AI</li>
+                  {interviewMode === 'tavus' ? (
+                    <>
+                      <li>• Allow camera and microphone access for video chat</li>
+                      <li>• Ensure stable internet connection for real-time video</li>
+                      <li>• Speak naturally - ElevenLabs provides realistic responses</li>
+                      <li>• Look at the camera for better eye contact with AI avatar</li>
+                      <li>• Experience lifelike conversations with Tavus technology</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>• Find a quiet space with good microphone access</li>
+                      <li>• Use Chrome or Edge for best voice recognition</li>
+                      <li>• Speak clearly and at a moderate pace</li>
+                      <li>• Take your time to think before responding</li>
+                      <li>• AI will adapt questions based on your responses</li>
+                      <li>• Get detailed feedback powered by Gemini AI</li>
+                    </>
+                  )}
                 </ul>
               </motion.div>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* AI Service Settings Modal */}
+      <AIServiceSettings
+        isOpen={showAISettings}
+        onClose={() => setShowAISettings(false)}
+      />
       
       {/* Footer */}
       <Footer />
