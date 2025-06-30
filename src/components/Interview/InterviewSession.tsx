@@ -24,19 +24,20 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackItem[]>([]);
   const [overallScore, setOverallScore] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
-  const [maxQuestions] = useState(5);
+  const [maxQuestions] = useState(8); // Increased for more comprehensive interview
   const [isInitialized, setIsInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [initializationStep, setInitializationStep] = useState('starting');
   const [avatarEmotion, setAvatarEmotion] = useState<'neutral' | 'happy' | 'focused' | 'encouraging'>('neutral');
   const [speechError, setSpeechError] = useState<string | null>(null);
   
-  // New state for better pacing control
+  // Auto-flow state management
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
-  const [canProceedToNext, setCanProceedToNext] = useState(false);
-  const [showNextQuestionButton, setShowNextQuestionButton] = useState(false);
   const [interviewPaused, setInterviewPaused] = useState(false);
   const [responseSubmitted, setResponseSubmitted] = useState(false);
+  const [autoQuestionTimer, setAutoQuestionTimer] = useState<NodeJS.Timeout | null>(null);
+  const [responseTimeout, setResponseTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [isAutoMode, setIsAutoMode] = useState(true); // New: Auto mode enabled by default
 
   const storageService = StorageService.getInstance();
 
@@ -89,11 +90,19 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     setSpeechError(speechSynthesisError);
   }, [speechSynthesisError]);
 
-  // Initialize interview with better error handling and progress tracking
+  // Clear timers on unmount
+  useEffect(() => {
+    return () => {
+      if (autoQuestionTimer) clearTimeout(autoQuestionTimer);
+      if (responseTimeout) clearTimeout(responseTimeout);
+    };
+  }, [autoQuestionTimer, responseTimeout]);
+
+  // Initialize interview with automatic flow
   useEffect(() => {
     const initializeInterview = async () => {
       try {
-        console.log('Starting interview initialization...');
+        console.log('Starting automatic Gemini AI interview...');
         setInitializationStep('initializing');
         
         // Check audio permissions first
@@ -117,92 +126,130 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
         }
         
         setInitializationStep('generating');
-        console.log('Generating first question...');
+        console.log('Generating first question with Gemini AI...');
         
-        // Generate the first question, passing the session directly
+        // Generate the first question automatically
         const firstQuestion = await generateQuestion(session);
         if (firstQuestion) {
           console.log('First question generated:', firstQuestion.content);
           setInitializationStep('ready');
           
-          // Mark as fully initialized first
+          // Mark as fully initialized
           setIsInitialized(true);
-          setIsWaitingForResponse(true);
           
-          // Wait a moment before speaking
+          // Automatically start the interview flow
           setTimeout(async () => {
-            if (!isSpeakerMuted) {
-              try {
-                console.log('Speaking first question...');
-                await speak(firstQuestion.content, settings.voiceAccent);
-                console.log('First question spoken successfully');
-                
-                // After speaking, show that user can respond
-                setIsWaitingForResponse(true);
-              } catch (error) {
-                console.error('Error speaking first question:', error);
-                setSpeechError('Failed to speak question. Please check your audio settings.');
-                // Continue anyway - user can still read the question
-                setIsWaitingForResponse(true);
-              }
-            } else {
-              setIsWaitingForResponse(true);
-            }
-          }, 1500); // Increased delay for better pacing
+            await startAutomaticQuestionFlow(firstQuestion.content);
+          }, 2000);
         } else {
           console.error('Failed to generate first question');
-          // Still allow the interview to proceed
           setIsInitialized(true);
-          setIsWaitingForResponse(true);
         }
       } catch (error) {
         console.error('Error during interview initialization:', error);
         setSpeechError('Initialization failed. Please try again.');
-        // Show error but still allow proceeding
         setIsInitialized(true);
       }
     };
 
     initializeInterview();
-  }, [settings, resumeData, startInterview, generateQuestion, speak, isSpeakerMuted, speechReady, checkAudioPermissions]);
+  }, [settings, resumeData, startInterview, generateQuestion, speechReady, checkAudioPermissions]);
 
-  const handleGenerateNextQuestion = useCallback(async () => {
-    if (interviewPaused) return;
+  // Automatic question flow function
+  const startAutomaticQuestionFlow = async (questionText: string) => {
+    if (interviewPaused || !isAutoMode) return;
+
+    try {
+      console.log('Starting automatic question flow with Gemini AI');
+      
+      // Speak the question automatically
+      if (!isSpeakerMuted) {
+        console.log('AI speaking question:', questionText.substring(0, 50) + '...');
+        await speak(questionText, settings.voiceAccent);
+      }
+      
+      // Automatically start listening for response after question is spoken
+      setTimeout(() => {
+        if (!interviewPaused && isAutoMode) {
+          setIsWaitingForResponse(true);
+          console.log('Auto-starting voice recognition...');
+          startListening();
+          
+          // Set a timeout for response (30 seconds)
+          const timeout = setTimeout(() => {
+            if (isListening) {
+              console.log('Response timeout reached, moving to next question');
+              stopListening();
+              handleAutoNextQuestion();
+            }
+          }, 30000);
+          
+          setResponseTimeout(timeout);
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error in automatic question flow:', error);
+      setSpeechError('Failed to speak question automatically.');
+    }
+  };
+
+  // Auto-generate next question
+  const handleAutoNextQuestion = useCallback(async () => {
+    if (interviewPaused || !isAutoMode) return;
     
-    console.log('Generating next question...');
-    setShowNextQuestionButton(false);
-    setCanProceedToNext(false);
+    console.log('Auto-generating next question with Gemini AI...');
     setResponseSubmitted(false);
+    setIsWaitingForResponse(false);
     
+    // Clear any existing timers
+    if (responseTimeout) {
+      clearTimeout(responseTimeout);
+      setResponseTimeout(null);
+    }
+    
+    const newQuestionCount = questionCount + 1;
+    setQuestionCount(newQuestionCount);
+
+    // Check if interview should end
+    if (newQuestionCount >= maxQuestions) {
+      console.log('Interview completed, ending session...');
+      setTimeout(async () => {
+        await handleEndInterview();
+      }, 2000);
+      return;
+    }
+    
+    // Generate next question automatically
     const message = await generateQuestion();
     if (message) {
-      setIsWaitingForResponse(true);
+      // Wait a moment before asking next question
+      const timer = setTimeout(async () => {
+        await startAutomaticQuestionFlow(message.content);
+      }, 3000); // 3 second pause between questions
       
-      if (!isSpeakerMuted) {
-        console.log('Speaking question:', message.content);
-        try {
-          setSpeechError(null);
-          await speak(message.content, settings.voiceAccent);
-          console.log('Question spoken successfully');
-        } catch (error) {
-          console.error('Error speaking question:', error);
-          setSpeechError('Failed to speak question. You can still read it above.');
-        }
-      }
+      setAutoQuestionTimer(timer);
     }
-  }, [generateQuestion, speak, isSpeakerMuted, settings.voiceAccent, interviewPaused]);
+  }, [generateQuestion, questionCount, maxQuestions, interviewPaused, isAutoMode, responseTimeout]);
 
-  const handleSubmitResponse = useCallback(async (response: string) => {
-    if (!currentSession || responseSubmitted) return;
+  // Handle automatic response submission
+  const handleAutoSubmitResponse = useCallback(async (response: string) => {
+    if (!currentSession || responseSubmitted || !isAutoMode) return;
 
-    console.log('Submitting response:', response.substring(0, 50) + '...');
+    console.log('Auto-submitting response to Gemini AI:', response.substring(0, 50) + '...');
     setResponseSubmitted(true);
     setIsWaitingForResponse(false);
+
+    // Clear response timeout
+    if (responseTimeout) {
+      clearTimeout(responseTimeout);
+      setResponseTimeout(null);
+    }
 
     addUserResponse(response);
     resetTranscript();
 
-    // Get feedback for this response
+    // Get feedback for this response using Gemini AI
     const lastQuestion = currentSession.messages
       .filter(m => m.role === 'assistant')
       .pop();
@@ -221,54 +268,79 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       }
     }
 
-    const newQuestionCount = questionCount + 1;
-    setQuestionCount(newQuestionCount);
-
-    // Check if interview should end
-    if (newQuestionCount >= maxQuestions) {
-      console.log('Interview completed, ending session...');
-      setTimeout(async () => {
-        await handleEndInterview();
-      }, 2000);
-    } else {
-      // Show option to proceed to next question after a delay
-      setTimeout(() => {
-        setCanProceedToNext(true);
-        setShowNextQuestionButton(true);
-      }, 3000); // 3 second delay before showing next question option
-    }
+    // Automatically proceed to next question
+    setTimeout(() => {
+      handleAutoNextQuestion();
+    }, 2000);
   }, [
     currentSession,
     addUserResponse,
     resetTranscript,
     getFeedback,
-    questionCount,
-    maxQuestions,
-    responseSubmitted
+    responseSubmitted,
+    isAutoMode,
+    responseTimeout,
+    handleAutoNextQuestion
   ]);
 
+  // Auto-submit when user stops speaking (transcript is complete)
+  useEffect(() => {
+    if (transcript && !isListening && isWaitingForResponse && !responseSubmitted && isAutoMode) {
+      // Wait a moment to ensure user is done speaking
+      const submitTimer = setTimeout(() => {
+        if (transcript.trim().length > 10) { // Minimum response length
+          handleAutoSubmitResponse(transcript);
+        } else {
+          // If response too short, restart listening
+          console.log('Response too short, restarting listening...');
+          startListening();
+        }
+      }, 2000);
+
+      return () => clearTimeout(submitTimer);
+    }
+  }, [transcript, isListening, isWaitingForResponse, responseSubmitted, isAutoMode, handleAutoSubmitResponse, startListening]);
+
   const handleEndInterview = useCallback(async () => {
-    console.log('Ending interview session...');
+    console.log('Ending automatic Gemini AI interview session...');
+    setIsAutoMode(false); // Disable auto mode
+    
+    // Clear all timers
+    if (autoQuestionTimer) clearTimeout(autoQuestionTimer);
+    if (responseTimeout) clearTimeout(responseTimeout);
+    
     const session = await endInterview();
     if (session) {
       onComplete(session);
     }
-  }, [endInterview, onComplete]);
+  }, [endInterview, onComplete, autoQuestionTimer, responseTimeout]);
 
   const handlePauseInterview = () => {
-    setInterviewPaused(!interviewPaused);
-    if (isSpeaking) {
-      cancelSpeech();
-    }
-    if (isListening) {
-      stopListening();
+    const newPausedState = !interviewPaused;
+    setInterviewPaused(newPausedState);
+    
+    if (newPausedState) {
+      // Pause: stop all activities
+      if (isSpeaking) cancelSpeech();
+      if (isListening) stopListening();
+      if (autoQuestionTimer) clearTimeout(autoQuestionTimer);
+      if (responseTimeout) clearTimeout(responseTimeout);
+      console.log('Interview paused');
+    } else {
+      // Resume: continue auto flow if in auto mode
+      console.log('Interview resumed');
+      if (isAutoMode && !isWaitingForResponse && !isSpeaking) {
+        // Resume by generating next question
+        setTimeout(() => {
+          handleAutoNextQuestion();
+        }, 1000);
+      }
     }
   };
 
-  const handleSkipToNext = () => {
-    if (canProceedToNext) {
-      handleGenerateNextQuestion();
-    }
+  const toggleAutoMode = () => {
+    setIsAutoMode(!isAutoMode);
+    console.log('Auto mode toggled:', !isAutoMode);
   };
 
   const toggleSpeaker = () => {
@@ -309,17 +381,17 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
   const getInitializationMessage = () => {
     switch (initializationStep) {
       case 'starting':
-        return 'Starting your interview session...';
+        return 'Connecting to Gemini AI...';
       case 'initializing':
-        return 'Setting up AI interviewer...';
+        return 'Setting up AI interviewer with Gemini...';
       case 'preparing':
-        return 'Preparing interview questions...';
+        return 'Preparing intelligent questions...';
       case 'generating':
-        return 'Generating your first question...';
+        return 'Gemini AI generating your first question...';
       case 'ready':
-        return 'Almost ready! Preparing voice system...';
+        return 'Starting automatic interview flow...';
       default:
-        return 'Initializing your interview experience...';
+        return 'Initializing Gemini AI interview experience...';
     }
   };
 
@@ -331,28 +403,28 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
           animate={{ opacity: 1, scale: 1 }}
           className="text-center bg-white rounded-xl shadow-xl p-8 max-w-md"
         >
-          <div className="w-16 h-16 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">🎉 Ready to Start!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">🚀 Gemini AI Ready!</h2>
           <p className="text-gray-600 mb-4">
-            Using completely free, open-source AI technology with realistic face interviewer
+            Automatic interview flow with intelligent Gemini AI questions
           </p>
-          <div className="bg-green-50 rounded-lg p-4 mb-6 border border-green-200">
-            <div className="flex items-center justify-center text-green-700">
+          <div className="bg-purple-50 rounded-lg p-4 mb-6 border border-purple-200">
+            <div className="flex items-center justify-center text-purple-700">
               <CheckCircle className="w-5 h-5 mr-2" />
-              <span className="font-medium">AI Face Interviewer • Real Expressions • 100% Free</span>
+              <span className="font-medium">Gemini AI • Auto Questions • Smart Flow</span>
             </div>
           </div>
           
           <div className="mt-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-3"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-3"></div>
             <p className="text-gray-600 font-medium">{getInitializationMessage()}</p>
             
             {/* Progress indicator */}
             <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
               <div 
-                className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-500"
+                className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
                 style={{ 
                   width: initializationStep === 'starting' ? '20%' :
                          initializationStep === 'initializing' ? '40%' :
@@ -386,14 +458,6 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                 </button>
               </div>
             )}
-
-            {/* Skip initialization button for debugging */}
-            <button
-              onClick={() => setIsInitialized(true)}
-              className="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
-            >
-              Skip & Continue
-            </button>
           </div>
         </motion.div>
       </div>
@@ -413,7 +477,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Session Error</h2>
           <p className="text-gray-600 mb-6">
-            There was an issue starting your interview session. Please try again.
+            There was an issue starting your Gemini AI interview session. Please try again.
           </p>
           <button
             onClick={onBack}
@@ -442,10 +506,10 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
               </button>
               <div className="ml-6">
                 <h1 className="text-xl font-semibold text-gray-900">
-                  {settings.type.charAt(0).toUpperCase() + settings.type.slice(1)} Interview
+                  Gemini AI {settings.type.charAt(0).toUpperCase() + settings.type.slice(1)} Interview
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Question {questionCount + 1} of {maxQuestions} • AI Face Interviewer • Controlled Pacing
+                  Question {questionCount + 1} of {maxQuestions} • Automatic Flow • Intelligent Questions
                 </p>
               </div>
             </div>
@@ -453,10 +517,23 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
             <div className="flex items-center space-x-4">
               <div className="w-48 bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${((questionCount) / maxQuestions) * 100}%` }}
                 />
               </div>
+              
+              {/* Auto Mode Toggle */}
+              <button
+                onClick={toggleAutoMode}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  isAutoMode 
+                    ? 'bg-green-100 text-green-700 border border-green-300' 
+                    : 'bg-gray-100 text-gray-600 border border-gray-300'
+                }`}
+                title={isAutoMode ? 'Auto Mode ON' : 'Auto Mode OFF'}
+              >
+                {isAutoMode ? '🤖 AUTO' : '👤 MANUAL'}
+              </button>
               
               {/* Interview Controls */}
               <button
@@ -471,9 +548,9 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                 {interviewPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
               </button>
               
-              <div className="flex items-center text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
+              <div className="flex items-center text-sm text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
                 <CheckCircle className="w-4 h-4 mr-1" />
-                AI Face
+                Gemini AI
               </div>
               <button
                 onClick={toggleFullscreen}
@@ -496,7 +573,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       <div className={`flex ${isFullscreen ? 'h-[calc(100vh-4rem)]' : 'h-[calc(100vh-4rem)]'}`}>
         {/* Main Interview Area */}
         <div className={`flex ${isFullscreen ? 'w-full' : 'flex-1'}`}>
-          {/* Avatar Section - Now using FaceInterviewer */}
+          {/* Avatar Section */}
           <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} ${isFullscreen ? 'p-0' : 'p-6'}`}>
             <div className={`h-full ${isFullscreen ? '' : 'bg-white rounded-xl shadow-lg overflow-hidden'}`}>
               <FaceInterviewer
@@ -518,41 +595,36 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                   transcript={transcript}
                   onStartListening={startListening}
                   onStopListening={stopListening}
-                  onSubmitResponse={handleSubmitResponse}
+                  onSubmitResponse={handleAutoSubmitResponse}
                   isSpeaking={isSpeaking}
                   onToggleSpeaker={toggleSpeaker}
                   isSpeakerMuted={isSpeakerMuted}
-                  disabled={interviewPaused || !isWaitingForResponse || responseSubmitted}
+                  disabled={interviewPaused || !isAutoMode}
                 />
                 
                 {/* Interview Status */}
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Interview Status:</span>
+                    <span className="text-sm font-medium text-purple-700">Gemini AI Status:</span>
                     <span className={`text-sm font-semibold ${
                       interviewPaused ? 'text-yellow-600' :
                       isWaitingForResponse ? 'text-blue-600' :
-                      canProceedToNext ? 'text-green-600' :
-                      'text-gray-600'
+                      isSpeaking ? 'text-purple-600' :
+                      isGenerating ? 'text-orange-600' :
+                      'text-green-600'
                     }`}>
                       {interviewPaused ? 'Paused' :
-                       isWaitingForResponse ? 'Waiting for your response' :
-                       canProceedToNext ? 'Ready for next question' :
+                       isWaitingForResponse ? 'Listening for your response' :
+                       isSpeaking ? 'AI asking question' :
+                       isGenerating ? 'Generating next question' :
                        'Processing...'}
                     </span>
                   </div>
                   
-                  {/* Next Question Button */}
-                  {showNextQuestionButton && !interviewPaused && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={handleSkipToNext}
-                      className="w-full mt-3 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-                    >
-                      <SkipForward className="w-4 h-4 mr-2" />
-                      Continue to Next Question
-                    </motion.button>
+                  {isAutoMode && (
+                    <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                      🤖 Automatic mode: Questions flow naturally with Gemini AI
+                    </div>
                   )}
                 </div>
                 
@@ -587,9 +659,9 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
 
                 {/* Speech Status */}
                 <div className="mt-4 flex items-center justify-center space-x-4 text-sm">
-                  <div className={`flex items-center ${isSpeaking ? 'text-green-600' : 'text-gray-500'}`}>
+                  <div className={`flex items-center ${isSpeaking ? 'text-purple-600' : 'text-gray-500'}`}>
                     {isSpeakerMuted ? <VolumeX className="w-4 h-4 mr-1" /> : <Volume2 className="w-4 h-4 mr-1" />}
-                    <span>{isSpeaking ? 'AI Speaking...' : 'AI Ready'}</span>
+                    <span>{isSpeaking ? 'Gemini AI Speaking...' : 'AI Ready'}</span>
                   </div>
                   <div className={`flex items-center ${isListening ? 'text-blue-600' : 'text-gray-500'}`}>
                     <div className={`w-2 h-2 rounded-full mr-2 ${isListening ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
@@ -602,7 +674,7 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                   <div className="mt-4 flex items-center justify-center">
                     <div className="flex items-center space-x-1 px-3 py-2 bg-green-50 rounded-full border border-green-200">
                       <div className="w-2 h-2 bg-green-500 rounded-full" />
-                      <span className="text-xs text-green-700 font-medium">Voice System Ready</span>
+                      <span className="text-xs text-green-700 font-medium">Gemini AI Voice System Ready</span>
                     </div>
                   </div>
                 )}
@@ -639,12 +711,12 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
               {/* Voice Controls */}
               <button
                 onClick={isListening ? stopListening : startListening}
-                disabled={isSpeaking || interviewPaused || !isWaitingForResponse || responseSubmitted}
+                disabled={isSpeaking || interviewPaused || !isAutoMode}
                 className={`p-4 rounded-full transition-all duration-300 ${
                   isListening
                     ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg animate-pulse'
                     : 'bg-primary-500 hover:bg-primary-600 text-white shadow-md'
-                } ${(isSpeaking || interviewPaused || !isWaitingForResponse || responseSubmitted) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${(isSpeaking || interviewPaused || !isAutoMode) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Mic className="w-6 h-6" />
               </button>
@@ -673,23 +745,26 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                 {interviewPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
               </button>
 
-              {/* Next Question */}
-              {showNextQuestionButton && !interviewPaused && (
-                <button
-                  onClick={handleSkipToNext}
-                  className="p-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-                >
-                  <SkipForward className="w-5 h-5" />
-                </button>
-              )}
+              {/* Auto Mode Toggle */}
+              <button
+                onClick={toggleAutoMode}
+                className={`p-3 rounded-full transition-all duration-300 ${
+                  isAutoMode 
+                    ? 'bg-purple-500 hover:bg-purple-600 text-white' 
+                    : 'bg-gray-500 hover:bg-gray-600 text-white'
+                }`}
+                title={isAutoMode ? 'Auto Mode ON' : 'Auto Mode OFF'}
+              >
+                {isAutoMode ? '🤖' : '👤'}
+              </button>
 
               {/* Status Display */}
               <div className="text-white text-sm font-medium">
                 {interviewPaused ? 'Paused' :
                  isListening ? 'Listening...' : 
-                 isSpeaking ? 'AI Speaking...' : 
-                 isWaitingForResponse ? 'Your Turn' :
-                 'Ready'}
+                 isSpeaking ? 'Gemini AI Speaking...' : 
+                 isGenerating ? 'Generating...' :
+                 'Auto Mode'}
               </div>
 
               {/* Exit Fullscreen */}
@@ -708,23 +783,10 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       {isFullscreen && transcript && (
         <div className="fixed top-6 left-6 right-6 z-40">
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/20 shadow-xl">
-            <h4 className="text-white font-medium mb-2">Your Response:</h4>
+            <h4 className="text-white font-medium mb-2">Your Response (Auto-submitting):</h4>
             <p className="text-white/90 leading-relaxed">{transcript}</p>
-            <div className="flex space-x-3 mt-4">
-              <button
-                onClick={() => handleSubmitResponse(transcript)}
-                disabled={responseSubmitted}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Submit Response
-              </button>
-              <button
-                onClick={startListening}
-                disabled={responseSubmitted}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Record Again
-              </button>
+            <div className="mt-2 text-xs text-white/70">
+              🤖 Gemini AI will automatically process your response when you finish speaking
             </div>
           </div>
         </div>
