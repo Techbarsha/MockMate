@@ -3,7 +3,7 @@ export class SpeechService {
   private synthesis: SpeechSynthesis;
   private isListening = false;
   private onResultCallback?: (text: string) => void;
-  private onEndCallback?: () => void;
+  private onEndCallback?: (error?: string) => void;
   private voices: SpeechSynthesisVoice[] = [];
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private isInitialized = false;
@@ -81,12 +81,12 @@ export class SpeechService {
       console.error('Speech recognition error:', event.error);
       this.isListening = false;
       if (this.onEndCallback) {
-        this.onEndCallback();
+        this.onEndCallback(event.error);
       }
     };
   }
 
-  startListening(onResult: (text: string) => void, onEnd?: () => void): boolean {
+  startListening(onResult: (text: string) => void, onEnd?: (error?: string) => void): boolean {
     if (!this.recognition || this.isListening) {
       return false;
     }
