@@ -1,6 +1,6 @@
 export class GeminiVideoService {
   private apiKey: string;
-  private baseUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent';
+  private baseUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-exp:generateContent';
   private conversationHistory: Array<{ role: string; content: string }> = [];
   private currentInterviewContext: any = null;
 
@@ -328,3 +328,5 @@ Be constructive and encouraging while providing actionable feedback.`;
     return !!this.apiKey;
   }
 }
+
+export { GeminiVideoService }
