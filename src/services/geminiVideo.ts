@@ -1,6 +1,6 @@
 export class GeminiVideoService {
   private apiKey: string;
-  private baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+  private baseUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent';
   private conversationHistory: Array<{ role: string; content: string }> = [];
   private currentInterviewContext: any = null;
 
