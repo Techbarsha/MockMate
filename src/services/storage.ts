@@ -44,30 +44,6 @@ export class StorageService {
     }
   }
 
-  saveApiKey(apiKey: string): void {
-    localStorage.setItem('openai_api_key', apiKey);
-  }
-
-  getApiKey(): string | null {
-    return localStorage.getItem('openai_api_key');
-  }
-
-  saveHuggingFaceApiKey(apiKey: string): void {
-    localStorage.setItem('huggingface_api_key', apiKey);
-  }
-
-  getHuggingFaceApiKey(): string | null {
-    return localStorage.getItem('huggingface_api_key');
-  }
-
-  saveGeminiApiKey(apiKey: string): void {
-    localStorage.setItem('gemini_api_key', apiKey);
-  }
-
-  getGeminiApiKey(): string | null {
-    return localStorage.getItem('gemini_api_key');
-  }
-
   saveElevenLabsApiKey(apiKey: string): void {
     localStorage.setItem('elevenlabs_api_key', apiKey);
   }
@@ -77,7 +53,7 @@ export class StorageService {
   }
 
   clearData(): void {
-    const keysToKeep = ['openai_api_key', 'huggingface_api_key', 'gemini_api_key', 'elevenlabs_api_key'];
+    const keysToKeep = ['elevenlabs_api_key'];
     const allKeys = Object.keys(localStorage);
     
     allKeys.forEach(key => {
@@ -87,29 +63,14 @@ export class StorageService {
     });
   }
 
-  // Initialize API keys if provided
-  initializeApiKeys(): void {
-    // Initialize ElevenLabs API key
-    const elevenLabsKey = 'sk_54b7d57e3443eebc96062eac13fa7d28d410d19049a1df39';
-    const existingElevenLabsKey = this.getElevenLabsApiKey();
-    
-    if (!existingElevenLabsKey && elevenLabsKey) {
-      console.log('Initializing ElevenLabs API key...');
-      this.saveElevenLabsApiKey(elevenLabsKey);
-    }
-
-    // Initialize Gemini API key
-    const geminiKey = 'AIzaSyC2Ko9jxQb7JGPcECty_tMwoWS0_yuPtX8';
-    const existingGeminiKey = this.getGeminiApiKey();
-    
-    if (!existingGeminiKey && geminiKey) {
-      console.log('Initializing Gemini API key...');
-      this.saveGeminiApiKey(geminiKey);
-    }
-  }
-
-  // Legacy method for backward compatibility
+  // Initialize ElevenLabs API key if provided
   initializeElevenLabsKey(): void {
-    this.initializeApiKeys();
+    const providedKey = 'sk_54b7d57e3443eebc96062eac13fa7d28d410d19049a1df39';
+    const existingKey = this.getElevenLabsApiKey();
+    
+    if (!existingKey && providedKey) {
+      console.log('Initializing ElevenLabs API key...');
+      this.saveElevenLabsApiKey(providedKey);
+    }
   }
 }
