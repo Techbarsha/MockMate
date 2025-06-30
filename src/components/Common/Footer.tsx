@@ -99,7 +99,7 @@ export default function Footer() {
             <div className="flex items-center text-gray-400 mb-4 md:mb-0">
               <span>Made with</span>
               <Heart className="w-4 h-4 mx-1 text-red-500" />
-              <span>for the community • Barsha • {currentYear}</span>
+              <span>Bolt.new • Barsha • {currentYear}</span>
             </div>
             
             <div className="flex items-center space-x-4">
