@@ -87,14 +87,29 @@ export class StorageService {
     });
   }
 
-  // Initialize ElevenLabs API key if provided
-  initializeElevenLabsKey(): void {
-    const providedKey = 'sk_54b7d57e3443eebc96062eac13fa7d28d410d19049a1df39';
-    const existingKey = this.getElevenLabsApiKey();
+  // Initialize API keys if provided
+  initializeApiKeys(): void {
+    // Initialize ElevenLabs API key
+    const elevenLabsKey = 'sk_54b7d57e3443eebc96062eac13fa7d28d410d19049a1df39';
+    const existingElevenLabsKey = this.getElevenLabsApiKey();
     
-    if (!existingKey && providedKey) {
+    if (!existingElevenLabsKey && elevenLabsKey) {
       console.log('Initializing ElevenLabs API key...');
-      this.saveElevenLabsApiKey(providedKey);
+      this.saveElevenLabsApiKey(elevenLabsKey);
     }
+
+    // Initialize Gemini API key
+    const geminiKey = 'AIzaSyC2Ko9jxQb7JGPcECty_tMwoWS0_yuPtX8';
+    const existingGeminiKey = this.getGeminiApiKey();
+    
+    if (!existingGeminiKey && geminiKey) {
+      console.log('Initializing Gemini API key...');
+      this.saveGeminiApiKey(geminiKey);
+    }
+  }
+
+  // Legacy method for backward compatibility
+  initializeElevenLabsKey(): void {
+    this.initializeApiKeys();
   }
 }

@@ -36,8 +36,8 @@ function AppContent() {
   useEffect(() => {
     // Initialize app
     const initializeApp = async () => {
-      // Initialize ElevenLabs API key
-      storageService.initializeElevenLabsKey();
+      // Initialize API keys (both ElevenLabs and Gemini)
+      storageService.initializeApiKeys();
       
       // Load user profile if exists
       let profile = storageService.getUserProfile();
@@ -200,9 +200,14 @@ function AppContent() {
           </motion.div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2">MockMate</h1>
           <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">AI-Powered Interview Coach</p>
-          <LoadingSpinner text="Initializing ElevenLabs + Gemini AI..." />
-          <div className="mt-4 text-sm text-green-600 dark:text-green-400">
-            ✅ ElevenLabs API Key Configured
+          <LoadingSpinner text="Initializing Gemini AI + ElevenLabs..." />
+          <div className="mt-4 space-y-2">
+            <div className="text-sm text-green-600 dark:text-green-400">
+              ✅ Gemini AI Configured
+            </div>
+            <div className="text-sm text-green-600 dark:text-green-400">
+              ✅ ElevenLabs API Ready
+            </div>
           </div>
         </motion.div>
       </div>

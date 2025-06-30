@@ -7,14 +7,21 @@ export class GeminiService {
   }
 
   private getApiKey(): string {
-    // Try to get from environment or localStorage
+    // Try to get from environment first, then localStorage
     const envKey = import.meta.env.VITE_GEMINI_API_KEY;
     const storedKey = localStorage.getItem('gemini_api_key');
     
+    // Use the provided API key as default
+    const providedKey = 'AIzaSyC2Ko9jxQb7JGPcECty_tMwoWS0_yuPtX8';
+    
     if (envKey) return envKey;
     if (storedKey) return storedKey;
+    if (providedKey) {
+      // Auto-save the provided key
+      localStorage.setItem('gemini_api_key', providedKey);
+      return providedKey;
+    }
     
-    // Return empty string if no key found - will use fallback questions
     return '';
   }
 
