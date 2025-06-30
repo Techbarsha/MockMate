@@ -328,5 +328,3 @@ Be constructive and encouraging while providing actionable feedback.`;
     return !!this.apiKey;
   }
 }
-
-export { GeminiVideoService }
