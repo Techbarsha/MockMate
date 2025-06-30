@@ -61,11 +61,6 @@ A sophisticated AI-powered interview simulation platform with real-time voice in
    - Begin speaking with your AI interviewer
    - Get real-time feedback and scoring
 
-### 🆓 Completely Free Benefits
-- **No API costs** - Uses free Hugging Face inference
-- **No registration** - Start using immediately
-- **No data collection** - Everything stays in your browser
-- **No limits** - Practice as much as you want
 
 ## 🛠️ Technical Architecture
 
