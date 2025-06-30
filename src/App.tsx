@@ -13,6 +13,7 @@ import ForgotPasswordPage from './components/Auth/ForgotPasswordPage';
 import LoadingSpinner from './components/Common/LoadingSpinner';
 import ChatBot from './components/Chat/ChatBot';
 import ProfileSettings from './components/Settings/ProfileSettings';
+import BoltBadge from "./components/BoltBadge";
 import { ThemeProvider } from './contexts/ThemeContext';
 import { StorageService } from './services/storage';
 import type { InterviewSettings as IInterviewSettings, InterviewSession as IInterviewSession, UserProfile } from './types';
