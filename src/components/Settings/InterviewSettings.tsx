@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Mic, Volume2 } from 'lucide-react';
+import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Mic, Volume2, MessageCircle, Bot } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AvatarSelector from '../Avatar/AvatarSelector';
 import Footer from '../Common/Footer';
@@ -9,11 +9,13 @@ import type { InterviewSettings } from '../../types';
 
 interface InterviewSettingsProps {
   onStartInterview: (settings: InterviewSettings, resumeData?: any) => void;
+  onStartAgentInterview?: (settings: InterviewSettings, resumeData?: any) => void;
   onResumeUpload?: (resumeData: any) => void;
 }
 
 export default function InterviewSettings({ 
   onStartInterview, 
+  onStartAgentInterview,
   onResumeUpload 
 }: InterviewSettingsProps) {
   const [settings, setSettings] = useState<InterviewSettings>({
@@ -27,6 +29,7 @@ export default function InterviewSettings({
   const [resumeData, setResumeData] = useState<any>(null);
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [voiceTestResult, setVoiceTestResult] = useState<'success' | 'error' | null>(null);
+  const [interviewMode, setInterviewMode] = useState<'voice' | 'agent'>('voice');
 
   const handleSettingChange = <K extends keyof InterviewSettings>(
     key: K,
@@ -36,7 +39,11 @@ export default function InterviewSettings({
   };
 
   const handleStartInterview = () => {
-    onStartInterview(settings, resumeData);
+    if (interviewMode === 'agent' && onStartAgentInterview) {
+      onStartAgentInterview(settings, resumeData);
+    } else {
+      onStartInterview(settings, resumeData);
+    }
   };
 
   const handleResumeUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,9 +108,60 @@ export default function InterviewSettings({
           >
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Voice-Powered Interview Practice</h2>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              Experience ultra-realistic voice conversations with ElevenLabs AI
+              Choose between voice interviews or conversational AI agent
             </p>
             
+            {/* Interview Mode Selection */}
+            <div className="mt-6 flex justify-center">
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-2 shadow-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setInterviewMode('voice')}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                      interviewMode === 'voice'
+                        ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Mic className="w-5 h-5" />
+                      <span>Voice Interview</span>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => setInterviewMode('agent')}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                      interviewMode === 'agent'
+                        ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white shadow-lg'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <MessageCircle className="w-5 h-5" />
+                      <span>AI Agent</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Mode Description */}
+            <div className="mt-4">
+              {interviewMode === 'voice' ? (
+                <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-700">
+                  <Mic className="w-5 h-5 mr-2" />
+                  <span className="font-semibold">Ultra-realistic voice with predefined questions</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/30 dark:to-teal-900/30 text-green-700 dark:text-green-300 rounded-full border border-green-200 dark:border-green-700">
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  <Bot className="w-4 h-4 mr-2" />
+                  <span className="font-semibold">Conversational AI agent with natural dialogue</span>
+                </div>
+              )}
+            </div>
+
             {/* ElevenLabs Status */}
             <div className="mt-6 flex justify-center">
               <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
@@ -157,8 +215,17 @@ export default function InterviewSettings({
 
             {/* Features Highlight */}
             <div className="mt-6 inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-700">
-              <Mic className="w-5 h-5 mr-2" />
-              <span className="font-semibold">Ultra-Realistic Voice • Natural Conversations • Professional Quality</span>
+              {interviewMode === 'voice' ? (
+                <>
+                  <Mic className="w-5 h-5 mr-2" />
+                  <span className="font-semibold">Ultra-Realistic Voice • Natural Conversations • Professional Quality</span>
+                </>
+              ) : (
+                <>
+                  <MessageCircle className="w-5 h-5 mr-2" />
+                  <span className="font-semibold">AI Agent • Natural Dialogue • Adaptive Responses</span>
+                </>
+              )}
             </div>
           </motion.div>
 
@@ -264,29 +331,31 @@ export default function InterviewSettings({
                     </div>
                   </div>
 
-                  {/* Voice Accent */}
-                  <div>
-                    <div className="flex items-center mb-3">
-                      <Globe className="w-5 h-5 text-primary-500 mr-2" />
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Accent</h3>
+                  {/* Voice Accent - Only for voice mode */}
+                  {interviewMode === 'voice' && (
+                    <div>
+                      <div className="flex items-center mb-3">
+                        <Globe className="w-5 h-5 text-primary-500 mr-2" />
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Accent</h3>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {Object.entries(VOICE_ACCENTS).map(([key, accent]) => (
+                          <button
+                            key={key}
+                            onClick={() => handleSettingChange('voiceAccent', key as any)}
+                            className={`p-3 rounded-lg border text-center transition-colors ${
+                              settings.voiceAccent === key
+                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            <div className="text-xl mb-1">{accent.flag}</div>
+                            <div className="text-sm font-medium">{accent.label}</div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {Object.entries(VOICE_ACCENTS).map(([key, accent]) => (
-                        <button
-                          key={key}
-                          onClick={() => handleSettingChange('voiceAccent', key as any)}
-                          className={`p-3 rounded-lg border text-center transition-colors ${
-                            settings.voiceAccent === key
-                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-                          }`}
-                        >
-                          <div className="text-xl mb-1">{accent.flag}</div>
-                          <div className="text-sm font-medium">{accent.label}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </motion.div>
 
@@ -327,18 +396,20 @@ export default function InterviewSettings({
 
             {/* Right Column - Avatar & Start */}
             <div className="space-y-6">
-              {/* Avatar Selection */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
-              >
-                <AvatarSelector
-                  selectedStyle={settings.avatarStyle}
-                  onStyleChange={(style) => handleSettingChange('avatarStyle', style)}
-                />
-              </motion.div>
+              {/* Avatar Selection - Only for voice mode */}
+              {interviewMode === 'voice' && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+                >
+                  <AvatarSelector
+                    selectedStyle={settings.avatarStyle}
+                    onStyleChange={(style) => handleSettingChange('avatarStyle', style)}
+                  />
+                </motion.div>
+              )}
 
               {/* Start Interview Button */}
               <motion.div
@@ -365,10 +436,14 @@ export default function InterviewSettings({
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleStartInterview}
-                    className="w-full px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center bg-gradient-to-r from-purple-500 to-blue-500 text-white"
+                    className={`w-full px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center ${
+                      interviewMode === 'agent'
+                        ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white'
+                        : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
+                    }`}
                   >
                     <Play className="w-6 h-6 mr-2" />
-                    Start Voice Interview
+                    {interviewMode === 'agent' ? 'Start Agent Interview' : 'Start Voice Interview'}
                   </motion.button>
                   
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
@@ -377,8 +452,17 @@ export default function InterviewSettings({
                   
                   <div className="flex items-center justify-center mt-2 text-xs">
                     <div className="flex items-center text-purple-600 dark:text-purple-400">
-                      <Mic className="w-3 h-3 mr-1" />
-                      <span>Powered by ElevenLabs Voice AI</span>
+                      {interviewMode === 'agent' ? (
+                        <>
+                          <MessageCircle className="w-3 h-3 mr-1" />
+                          <span>Powered by ElevenLabs Agent</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="w-3 h-3 mr-1" />
+                          <span>Powered by ElevenLabs Voice AI</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -392,15 +476,27 @@ export default function InterviewSettings({
                 className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 rounded-xl border border-purple-200 dark:border-purple-700 p-6"
               >
                 <h4 className="font-semibold text-purple-900 dark:text-purple-300 mb-3">
-                  🎤 Voice Interview Tips
+                  {interviewMode === 'agent' ? '🤖 Agent Interview Tips' : '🎤 Voice Interview Tips'}
                 </h4>
                 <ul className="text-sm text-purple-800 dark:text-purple-400 space-y-2">
-                  <li>• Find a quiet space with good microphone access</li>
-                  <li>• Use Chrome or Edge for best voice recognition</li>
-                  <li>• Speak clearly and at a moderate pace</li>
-                  <li>• Take your time to think before responding</li>
-                  <li>• Experience ultra-realistic voice responses</li>
-                  <li>• Get immediate feedback on your performance</li>
+                  {interviewMode === 'agent' ? (
+                    <>
+                      <li>• Engage in natural conversation with the AI agent</li>
+                      <li>• Ask questions and seek clarification when needed</li>
+                      <li>• Use voice or text input as preferred</li>
+                      <li>• Experience adaptive responses based on your answers</li>
+                      <li>• Get personalized feedback and coaching</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>• Find a quiet space with good microphone access</li>
+                      <li>• Use Chrome or Edge for best voice recognition</li>
+                      <li>• Speak clearly and at a moderate pace</li>
+                      <li>• Take your time to think before responding</li>
+                      <li>• Experience ultra-realistic voice responses</li>
+                      <li>• Get immediate feedback on your performance</li>
+                    </>
+                  )}
                 </ul>
               </motion.div>
             </div>
