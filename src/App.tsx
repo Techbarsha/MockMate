@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Header from './components/Common/Header';
 import InterviewSettings from './components/Settings/InterviewSettings';
 import InterviewSession from './components/Interview/InterviewSession';
+import GeminiInterviewSession from './components/Interview/GeminiInterviewSession';
 import ResultsPage from './components/Results/ResultsPage';
 import HomePage from './components/Pages/HomePage';
 import AboutPage from './components/Pages/AboutPage';
@@ -26,6 +27,7 @@ function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChatBotOpen, setIsChatBotOpen] = useState(false);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
+  const [interviewMode, setInterviewMode] = useState<'standard' | 'gemini'>('standard');
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,10 +62,19 @@ function AppContent() {
   };
 
   const handleStartInterview = (settings: IInterviewSettings, resumeData?: any) => {
-    console.log('Starting interview with settings:', settings);
+    console.log('Starting standard interview with settings:', settings);
     setCurrentSettings(settings);
     setResumeData(resumeData);
+    setInterviewMode('standard');
     navigate('/interview');
+  };
+
+  const handleStartGeminiInterview = (settings: IInterviewSettings, resumeData?: any) => {
+    console.log('Starting Gemini interview with settings:', settings);
+    setCurrentSettings(settings);
+    setResumeData(resumeData);
+    setInterviewMode('gemini');
+    navigate('/gemini-interview');
   };
 
   const handleInterviewComplete = (session: IInterviewSession) => {
@@ -91,6 +102,7 @@ function AppContent() {
     setCurrentSettings(null);
     setCurrentSession(null);
     setResumeData(null);
+    setInterviewMode('standard');
     navigate('/');
   };
 
@@ -98,11 +110,13 @@ function AppContent() {
     setCurrentSettings(null);
     setCurrentSession(null);
     setResumeData(null);
+    setInterviewMode('standard');
     navigate('/setup');
   };
 
   const handleStartNewInterview = () => {
     setCurrentSession(null);
+    setInterviewMode('standard');
     navigate('/setup');
   };
 
@@ -253,6 +267,7 @@ function AppContent() {
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                       <InterviewSettings
                         onStartInterview={handleStartInterview}
+                        onStartGeminiInterview={handleStartGeminiInterview}
                         onResumeUpload={setResumeData}
                       />
                     </div>
@@ -265,6 +280,32 @@ function AppContent() {
               element={
                 currentSettings ? (
                   <InterviewSession
+                    settings={currentSettings}
+                    resumeData={resumeData}
+                    onBack={handleBackToSetup}
+                    onComplete={handleInterviewComplete}
+                  />
+                ) : (
+                  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                    <div className="text-center bg-white rounded-xl shadow-xl p-8">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">No Interview Settings Found</h2>
+                      <p className="text-gray-600 mb-6">Please go back and configure your interview settings.</p>
+                      <button
+                        onClick={handleBackToSetup}
+                        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        Back to Setup
+                      </button>
+                    </div>
+                  </div>
+                )
+              } 
+            />
+            <Route 
+              path="/gemini-interview" 
+              element={
+                currentSettings ? (
+                  <GeminiInterviewSession
                     settings={currentSettings}
                     resumeData={resumeData}
                     onBack={handleBackToSetup}

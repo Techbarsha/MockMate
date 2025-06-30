@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Zap, Key, Save, Sparkles, Video, Mic } from 'lucide-react';
+import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Zap, Key, Save, Sparkles, Video, Mic, Brain } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AvatarSelector from '../Avatar/AvatarSelector';
 import AIServiceSettings from './AIServiceSettings';
@@ -11,13 +11,13 @@ import type { InterviewSettings } from '../../types';
 
 interface InterviewSettingsProps {
   onStartInterview: (settings: InterviewSettings, resumeData?: any) => void;
-  onStartTavusInterview?: (settings: InterviewSettings, resumeData?: any) => void;
+  onStartGeminiInterview?: (settings: InterviewSettings, resumeData?: any) => void;
   onResumeUpload?: (resumeData: any) => void;
 }
 
 export default function InterviewSettings({ 
   onStartInterview, 
-  onStartTavusInterview,
+  onStartGeminiInterview,
   onResumeUpload 
 }: InterviewSettingsProps) {
   const [settings, setSettings] = useState<InterviewSettings>({
@@ -30,7 +30,7 @@ export default function InterviewSettings({
 
   const [resumeData, setResumeData] = useState<any>(null);
   const [showAISettings, setShowAISettings] = useState(false);
-  const [interviewMode, setInterviewMode] = useState<'standard' | 'tavus'>('standard');
+  const [interviewMode, setInterviewMode] = useState<'standard' | 'gemini'>('standard');
 
   const handleSettingChange = <K extends keyof InterviewSettings>(
     key: K,
@@ -40,8 +40,8 @@ export default function InterviewSettings({
   };
 
   const handleStartInterview = () => {
-    if (interviewMode === 'tavus' && onStartTavusInterview) {
-      onStartTavusInterview(settings, resumeData);
+    if (interviewMode === 'gemini' && onStartGeminiInterview) {
+      onStartGeminiInterview(settings, resumeData);
     } else {
       onStartInterview(settings, resumeData);
     }
@@ -79,7 +79,6 @@ export default function InterviewSettings({
   };
 
   // Check if AI services are configured
-  const hasTavusKey = !!localStorage.getItem('tavus_api_key');
   const hasElevenLabsKey = !!localStorage.getItem('elevenlabs_api_key');
   const hasGeminiKey = !!StorageService.getInstance().getGeminiApiKey();
 
@@ -95,7 +94,7 @@ export default function InterviewSettings({
           >
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Customize Your AI Interview</h2>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              Choose between standard AI or advanced Tavus + ElevenLabs experience
+              Choose between standard AI or advanced Gemini + ElevenLabs experience
             </p>
             
             {/* Interview Mode Selection */}
@@ -117,16 +116,16 @@ export default function InterviewSettings({
                   </button>
                   
                   <button
-                    onClick={() => setInterviewMode('tavus')}
+                    onClick={() => setInterviewMode('gemini')}
                     className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
-                      interviewMode === 'tavus'
+                      interviewMode === 'gemini'
                         ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white shadow-lg'
                         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     <div className="flex items-center space-x-2">
-                      <Video className="w-5 h-5" />
-                      <span>Tavus + ElevenLabs</span>
+                      <Brain className="w-5 h-5" />
+                      <span>Gemini + ElevenLabs</span>
                     </div>
                   </button>
                 </div>
@@ -142,29 +141,25 @@ export default function InterviewSettings({
                 </div>
               ) : (
                 <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/30 dark:to-teal-900/30 text-green-700 dark:text-green-300 rounded-full border border-green-200 dark:border-green-700">
-                  <Video className="w-4 h-4 mr-2" />
+                  <Brain className="w-4 h-4 mr-2" />
                   <Mic className="w-4 h-4 mr-2" />
-                  <span className="font-semibold">Real-time Video AI + Ultra-realistic Voice</span>
+                  <span className="font-semibold">Intelligent Gemini AI + Ultra-realistic Voice</span>
                 </div>
               )}
             </div>
 
             {/* AI Services Status */}
-            {interviewMode === 'tavus' && (
+            {interviewMode === 'gemini' && (
               <div className="mt-4 flex justify-center">
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center space-x-6 text-sm">
-                    <div className={`flex items-center ${hasTavusKey ? 'text-green-600' : 'text-red-600'}`}>
-                      <div className={`w-2 h-2 rounded-full mr-2 ${hasTavusKey ? 'bg-green-500' : 'bg-red-500'}`} />
-                      Tavus API
+                    <div className={`flex items-center ${hasGeminiKey ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${hasGeminiKey ? 'bg-green-500' : 'bg-red-500'}`} />
+                      Gemini AI
                     </div>
                     <div className={`flex items-center ${hasElevenLabsKey ? 'text-green-600' : 'text-red-600'}`}>
                       <div className={`w-2 h-2 rounded-full mr-2 ${hasElevenLabsKey ? 'bg-green-500' : 'bg-red-500'}`} />
                       ElevenLabs API
-                    </div>
-                    <div className={`flex items-center ${hasGeminiKey ? 'text-green-600' : 'text-red-600'}`}>
-                      <div className={`w-2 h-2 rounded-full mr-2 ${hasGeminiKey ? 'bg-green-500' : 'bg-red-500'}`} />
-                      Gemini API
                     </div>
                     <button
                       onClick={() => setShowAISettings(true)}
@@ -370,10 +365,10 @@ export default function InterviewSettings({
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ready to Start?</h3>
                   
-                  {interviewMode === 'tavus' && (!hasTavusKey || !hasElevenLabsKey) && (
+                  {interviewMode === 'gemini' && (!hasGeminiKey || !hasElevenLabsKey) && (
                     <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg">
                       <p className="text-yellow-800 dark:text-yellow-300 text-sm mb-2">
-                        Configure Tavus and ElevenLabs APIs for the full experience
+                        Configure Gemini and ElevenLabs APIs for the full experience
                       </p>
                       <button
                         onClick={() => setShowAISettings(true)}
@@ -389,13 +384,13 @@ export default function InterviewSettings({
                     whileTap={{ scale: 0.95 }}
                     onClick={handleStartInterview}
                     className={`w-full px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center ${
-                      interviewMode === 'tavus'
+                      interviewMode === 'gemini'
                         ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white'
                         : 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
                     }`}
                   >
                     <Play className="w-6 h-6 mr-2" />
-                    {interviewMode === 'tavus' ? 'Start Tavus Interview' : 'Start AI Interview'}
+                    {interviewMode === 'gemini' ? 'Start Gemini Interview' : 'Start AI Interview'}
                   </motion.button>
                   
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
@@ -403,11 +398,11 @@ export default function InterviewSettings({
                   </p>
                   
                   <div className="flex items-center justify-center mt-2 text-xs">
-                    {interviewMode === 'tavus' ? (
+                    {interviewMode === 'gemini' ? (
                       <div className="flex items-center text-green-600 dark:text-green-400">
-                        <Video className="w-3 h-3 mr-1" />
+                        <Brain className="w-3 h-3 mr-1" />
                         <Mic className="w-3 h-3 mr-1" />
-                        <span>Powered by Tavus + ElevenLabs</span>
+                        <span>Powered by Gemini + ElevenLabs</span>
                       </div>
                     ) : (
                       <div className="flex items-center text-purple-600 dark:text-purple-400">
@@ -427,16 +422,16 @@ export default function InterviewSettings({
                 className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 rounded-xl border border-purple-200 dark:border-purple-700 p-6"
               >
                 <h4 className="font-semibold text-purple-900 dark:text-purple-300 mb-3">
-                  💡 {interviewMode === 'tavus' ? 'Tavus Interview Tips' : 'AI Interview Tips'}
+                  💡 {interviewMode === 'gemini' ? 'Gemini + ElevenLabs Tips' : 'AI Interview Tips'}
                 </h4>
                 <ul className="text-sm text-purple-800 dark:text-purple-400 space-y-2">
-                  {interviewMode === 'tavus' ? (
+                  {interviewMode === 'gemini' ? (
                     <>
-                      <li>• Allow camera and microphone access for video chat</li>
-                      <li>• Ensure stable internet connection for real-time video</li>
-                      <li>• Speak naturally - ElevenLabs provides realistic responses</li>
-                      <li>• Look at the camera for better eye contact with AI avatar</li>
-                      <li>• Experience lifelike conversations with Tavus technology</li>
+                      <li>• Experience intelligent conversations with Gemini AI</li>
+                      <li>• Enjoy ultra-realistic voice responses from ElevenLabs</li>
+                      <li>• Get personalized questions based on your background</li>
+                      <li>• Receive detailed AI-powered feedback and analysis</li>
+                      <li>• Speak naturally - AI adapts to your communication style</li>
                     </>
                   ) : (
                     <>
