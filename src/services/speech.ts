@@ -58,8 +58,15 @@ export class SpeechService {
     this.recognition.lang = 'en-US';
     this.recognition.maxAlternatives = 1;
 
-    // Add more robust settings
-    this.recognition.grammars = null;
+    // Add more robust settings - fix the grammars property
+    try {
+      const SpeechGrammarList = (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
+      if (SpeechGrammarList) {
+        this.recognition.grammars = new SpeechGrammarList();
+      }
+    } catch (error) {
+      console.log('SpeechGrammarList not available, skipping grammar setup');
+    }
     this.recognition.serviceURI = null;
 
     this.recognition.onstart = () => {
