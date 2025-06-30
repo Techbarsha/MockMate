@@ -190,9 +190,12 @@ export class SpeechService {
   }
 
   private async restartRecognition(): Promise<boolean> {
-    if (!this.recognition || this.isListening) {
+    if (!this.recognition) {
       return false;
     }
+
+    // Always stop first to ensure clean state
+    await this.stopListening();
 
     try {
       console.log('Restarting speech recognition...');
@@ -211,16 +214,9 @@ export class SpeechService {
       return false;
     }
 
-    // Wait for any ongoing stop operation to complete
-    if (this.stopPromise) {
-      console.log('Waiting for previous stop operation to complete...');
-      await this.stopPromise;
-    }
-
-    if (this.isListening) {
-      console.log('Already listening, stopping first...');
-      await this.stopListening();
-    }
+    // Always stop any existing session first - this is the key fix
+    console.log('Ensuring any previous recognition session is stopped...');
+    await this.stopListening();
 
     this.onResultCallback = onResult;
     this.onEndCallback = onEnd;
@@ -233,22 +229,6 @@ export class SpeechService {
       return true;
     } catch (error) {
       console.error('Error starting speech recognition:', error);
-      
-      // Handle the case where recognition is already running
-      if (error instanceof Error && error.message.includes('already started')) {
-        console.log('Recognition already started, attempting to stop and restart...');
-        await this.stopListening();
-        // Try again after stopping
-        try {
-          this.recognition.start();
-          this.isListening = true;
-          return true;
-        } catch (retryError) {
-          console.error('Retry failed:', retryError);
-          return false;
-        }
-      }
-      
       return false;
     }
   }
