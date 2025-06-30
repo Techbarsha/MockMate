@@ -14,7 +14,7 @@ export function useVoiceRecognition() {
     return speechServiceRef.current;
   }, []);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     const speechService = initializeSpeechService();
     
     if (!speechService.isSpeechRecognitionSupported) {
@@ -25,7 +25,7 @@ export function useVoiceRecognition() {
     setError(null);
     setTranscript('');
 
-    const success = speechService.startListening(
+    const success = await speechService.startListening(
       (text) => {
         setTranscript(text);
         setError(null); // Clear any previous errors when we get results
@@ -65,10 +65,10 @@ export function useVoiceRecognition() {
     return success;
   }, [initializeSpeechService]);
 
-  const stopListening = useCallback(() => {
+  const stopListening = useCallback(async () => {
     const speechService = speechServiceRef.current;
     if (speechService) {
-      speechService.stopListening();
+      await speechService.stopListening();
     }
     setIsListening(false);
   }, []);

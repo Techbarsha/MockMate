@@ -9,6 +9,7 @@ export class SpeechService {
   private isInitialized = false;
   private recognitionAttempts = 0;
   private maxAttempts = 3;
+  private stopPromise: Promise<void> | null = null;
 
   constructor() {
     this.synthesis = window.speechSynthesis;
@@ -188,7 +189,7 @@ export class SpeechService {
     };
   }
 
-  private restartRecognition() {
+  private async restartRecognition(): Promise<boolean> {
     if (!this.recognition || this.isListening) {
       return false;
     }
@@ -204,20 +205,21 @@ export class SpeechService {
     }
   }
 
-  startListening(onResult: (text: string) => void, onEnd?: (error?: string) => void): boolean {
+  async startListening(onResult: (text: string) => void, onEnd?: (error?: string) => void): Promise<boolean> {
     if (!this.recognition) {
       console.error('Speech recognition not available');
       return false;
     }
 
+    // Wait for any ongoing stop operation to complete
+    if (this.stopPromise) {
+      console.log('Waiting for previous stop operation to complete...');
+      await this.stopPromise;
+    }
+
     if (this.isListening) {
       console.log('Already listening, stopping first...');
-      this.stopListening();
-      // Wait a moment before restarting
-      setTimeout(() => {
-        this.startListening(onResult, onEnd);
-      }, 500);
-      return true;
+      await this.stopListening();
     }
 
     this.onResultCallback = onResult;
@@ -235,28 +237,87 @@ export class SpeechService {
       // Handle the case where recognition is already running
       if (error instanceof Error && error.message.includes('already started')) {
         console.log('Recognition already started, attempting to stop and restart...');
-        this.recognition.stop();
-        setTimeout(() => {
-          this.startListening(onResult, onEnd);
-        }, 500);
-        return true;
+        await this.stopListening();
+        // Try again after stopping
+        try {
+          this.recognition.start();
+          this.isListening = true;
+          return true;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+          return false;
+        }
       }
       
       return false;
     }
   }
 
-  stopListening() {
-    if (this.recognition && this.isListening) {
+  async stopListening(): Promise<void> {
+    if (!this.recognition || !this.isListening) {
+      return Promise.resolve();
+    }
+
+    // If there's already a stop operation in progress, wait for it
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+
+    this.stopPromise = new Promise<void>((resolve) => {
+      const cleanup = () => {
+        this.isListening = false;
+        this.stopPromise = null;
+        resolve();
+      };
+
+      // Set up event listeners for when recognition actually ends
+      const originalOnEnd = this.recognition.onend;
+      const originalOnError = this.recognition.onerror;
+
+      const handleEnd = () => {
+        console.log('Speech recognition stopped successfully');
+        // Restore original handlers
+        this.recognition.onend = originalOnEnd;
+        this.recognition.onerror = originalOnError;
+        cleanup();
+      };
+
+      const handleError = (event: any) => {
+        console.log('Speech recognition stopped with error:', event.error);
+        // Restore original handlers
+        this.recognition.onend = originalOnEnd;
+        this.recognition.onerror = originalOnError;
+        cleanup();
+      };
+
+      // Temporarily override handlers to detect when stop completes
+      this.recognition.onend = handleEnd;
+      this.recognition.onerror = handleError;
+
       try {
         console.log('Stopping speech recognition...');
         this.recognition.stop();
-        this.isListening = false;
+        
+        // Fallback timeout in case events don't fire
+        setTimeout(() => {
+          if (this.stopPromise) {
+            console.log('Stop timeout reached, forcing cleanup');
+            this.recognition.onend = originalOnEnd;
+            this.recognition.onerror = originalOnError;
+            cleanup();
+          }
+        }, 1000);
+        
       } catch (error) {
         console.error('Error stopping speech recognition:', error);
-        this.isListening = false;
+        // Restore original handlers
+        this.recognition.onend = originalOnEnd;
+        this.recognition.onerror = originalOnError;
+        cleanup();
       }
-    }
+    });
+
+    return this.stopPromise;
   }
 
   async speak(text: string, voice?: string): Promise<void> {

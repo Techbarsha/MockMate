@@ -169,17 +169,17 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       }
       
       // Automatically start listening for response after question is spoken
-      setTimeout(() => {
+      setTimeout(async () => {
         if (!interviewPaused && isAutoMode) {
           setIsWaitingForResponse(true);
           console.log('Auto-starting voice recognition...');
-          startListening();
+          await startListening();
           
           // Set a timeout for response (30 seconds)
-          const timeout = setTimeout(() => {
+          const timeout = setTimeout(async () => {
             if (isListening) {
               console.log('Response timeout reached, moving to next question');
-              stopListening();
+              await stopListening();
               handleAutoNextQuestion();
             }
           }, 30000);
@@ -710,7 +710,13 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
             <div className="flex items-center space-x-6">
               {/* Voice Controls */}
               <button
-                onClick={isListening ? stopListening : startListening}
+                onClick={async () => {
+                  if (isListening) {
+                    await stopListening();
+                  } else {
+                    await startListening();
+                  }
+                }}
                 disabled={isSpeaking || interviewPaused || !isAutoMode}
                 className={`p-4 rounded-full transition-all duration-300 ${
                   isListening
