@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Key, Save, CheckCircle, Mic, Sparkles, ExternalLink, Brain } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Key, Save, CheckCircle, Mic, Sparkles, ExternalLink, Brain, Play, Volume2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StorageService } from '../../services/storage';
+import { ElevenLabsService } from '../../services/elevenlabs';
 
 interface AIServiceSettingsProps {
   isOpen: boolean;
@@ -21,10 +22,24 @@ export default function AIServiceSettings({ isOpen, onClose }: AIServiceSettings
     gemini: false
   });
 
-  const handleSaveApiKey = (service: 'elevenlabs' | 'gemini', key: string) => {
+  const [testingVoice, setTestingVoice] = useState(false);
+  const [voiceTestResult, setVoiceTestResult] = useState<'success' | 'error' | null>(null);
+  const [availableVoices, setAvailableVoices] = useState<any[]>([]);
+  const [loadingVoices, setLoadingVoices] = useState(false);
+  const [usageStats, setUsageStats] = useState<any>(null);
+
+  const elevenLabsService = new ElevenLabsService();
+
+  const handleSaveApiKey = async (service: 'elevenlabs' | 'gemini', key: string) => {
     switch (service) {
       case 'elevenlabs':
         localStorage.setItem('elevenlabs_api_key', key);
+        elevenLabsService.saveApiKey(key);
+        // Load voices after saving API key
+        if (key) {
+          loadVoices();
+          loadUsageStats();
+        }
         break;
       case 'gemini':
         StorageService.getInstance().saveGeminiApiKey(key);
@@ -36,6 +51,58 @@ export default function AIServiceSettings({ isOpen, onClose }: AIServiceSettings
       setSavedStates(prev => ({ ...prev, [service]: false }));
     }, 2000);
   };
+
+  const loadVoices = async () => {
+    if (!elevenLabsApiKey) return;
+    
+    setLoadingVoices(true);
+    try {
+      const voices = await elevenLabsService.getVoices();
+      setAvailableVoices(voices);
+      console.log('Loaded ElevenLabs voices:', voices.length);
+    } catch (error) {
+      console.error('Error loading voices:', error);
+      setAvailableVoices([]);
+    } finally {
+      setLoadingVoices(false);
+    }
+  };
+
+  const loadUsageStats = async () => {
+    if (!elevenLabsApiKey) return;
+    
+    try {
+      const stats = await elevenLabsService.getUsageStats();
+      setUsageStats(stats);
+    } catch (error) {
+      console.error('Error loading usage stats:', error);
+    }
+  };
+
+  const testVoice = async () => {
+    if (!elevenLabsApiKey) return;
+    
+    setTestingVoice(true);
+    setVoiceTestResult(null);
+    
+    try {
+      const success = await elevenLabsService.testVoice();
+      setVoiceTestResult(success ? 'success' : 'error');
+    } catch (error) {
+      console.error('Voice test failed:', error);
+      setVoiceTestResult('error');
+    } finally {
+      setTestingVoice(false);
+    }
+  };
+
+  // Load voices when component mounts and API key exists
+  useEffect(() => {
+    if (elevenLabsApiKey && isOpen) {
+      loadVoices();
+      loadUsageStats();
+    }
+  }, [elevenLabsApiKey, isOpen]);
 
   if (!isOpen) return null;
 
@@ -118,6 +185,102 @@ export default function AIServiceSettings({ isOpen, onClose }: AIServiceSettings
                   </button>
                 </div>
               </div>
+
+              {/* Voice Test */}
+              {elevenLabsApiKey && (
+                <div className="bg-green-100 dark:bg-green-900/30 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-green-900 dark:text-green-300">Test Voice System</h4>
+                    <button
+                      onClick={testVoice}
+                      disabled={testingVoice}
+                      className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                    >
+                      {testingVoice ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Testing...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-2" />
+                          Test Voice
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {voiceTestResult && (
+                    <div className={`flex items-center text-sm ${
+                      voiceTestResult === 'success' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
+                    }`}>
+                      {voiceTestResult === 'success' ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Voice test successful! ElevenLabs is working correctly.
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-4 h-4 mr-2" />
+                          Voice test failed. Please check your API key and internet connection.
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Usage Stats */}
+              {usageStats && (
+                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Usage Statistics</h4>
+                  <div className="text-sm text-blue-800 dark:text-blue-400">
+                    <p>Characters used: {usageStats.characterCount.toLocaleString()} / {usageStats.characterLimit.toLocaleString()}</p>
+                    <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min((usageStats.characterCount / usageStats.characterLimit) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <p className="mt-1">
+                      Status: {usageStats.canMakeRequest ? 
+                        <span className="text-green-600 dark:text-green-400">✓ Active</span> : 
+                        <span className="text-red-600 dark:text-red-400">✗ Limit reached</span>
+                      }
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Available Voices */}
+              {availableVoices.length > 0 && (
+                <div className="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-4">
+                  <h4 className="font-semibold text-purple-900 dark:text-purple-300 mb-3">
+                    Available Voices ({availableVoices.length})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                    {availableVoices.slice(0, 10).map((voice) => (
+                      <div key={voice.voiceId} className="text-sm text-purple-800 dark:text-purple-400 flex items-center">
+                        <Volume2 className="w-3 h-3 mr-2" />
+                        <span className="font-medium">{voice.name}</span>
+                        <span className="ml-2 text-xs opacity-75">({voice.category})</span>
+                      </div>
+                    ))}
+                  </div>
+                  {availableVoices.length > 10 && (
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                      And {availableVoices.length - 10} more voices available...
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {loadingVoices && (
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-center">
+                  <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Loading available voices...</p>
+                </div>
+              )}
               
               <div className="bg-green-100 dark:bg-green-900/30 rounded-lg p-4">
                 <h4 className="font-semibold text-green-900 dark:text-green-300 mb-2">Features:</h4>
@@ -126,6 +289,7 @@ export default function AIServiceSettings({ isOpen, onClose }: AIServiceSettings
                   <li>• Real-time streaming TTS</li>
                   <li>• Voice cloning capabilities</li>
                   <li>• Multiple language support</li>
+                  <li>• Professional interview voices</li>
                 </ul>
                 <a
                   href="https://elevenlabs.io/docs/api-reference/getting-started"
@@ -240,6 +404,41 @@ export default function AIServiceSettings({ isOpen, onClose }: AIServiceSettings
               <p className="text-sm text-blue-800 dark:text-blue-400">
                 Gemini AI's intelligence + ElevenLabs' voice quality = The most realistic interview practice experience available
               </p>
+            </div>
+          </div>
+
+          {/* Quick Setup Guide */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">🔧 Quick Setup Guide</h3>
+            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+              <div className="flex items-start">
+                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3 mt-0.5">1</span>
+                <div>
+                  <p className="font-medium">Get ElevenLabs API Key</p>
+                  <p>Sign up at elevenlabs.io and get your API key from the profile section</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3 mt-0.5">2</span>
+                <div>
+                  <p className="font-medium">Get Gemini API Key</p>
+                  <p>Visit Google AI Studio and create a free API key</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3 mt-0.5">3</span>
+                <div>
+                  <p className="font-medium">Save & Test</p>
+                  <p>Enter your API keys above, save them, and test the voice system</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <span className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3 mt-0.5">4</span>
+                <div>
+                  <p className="font-medium">Start Enhanced Interviews</p>
+                  <p>Select "Gemini + ElevenLabs" mode in interview settings</p>
+                </div>
+              </div>
             </div>
           </div>
 
