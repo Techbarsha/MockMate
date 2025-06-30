@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { HuggingFaceService } from '../services/huggingface';
+import { GeminiService } from '../services/gemini';
 import { StorageService } from '../services/storage';
 import type { InterviewSession, InterviewSettings, Message } from '../types';
 
@@ -9,7 +9,7 @@ export function useInterview() {
   const [error, setError] = useState<string | null>(null);
 
   const storageService = StorageService.getInstance();
-  const huggingFaceService = new HuggingFaceService();
+  const geminiService = new GeminiService();
 
   const startInterview = useCallback((settings: InterviewSettings, resumeData?: any) => {
     try {
@@ -23,7 +23,7 @@ export function useInterview() {
 
       setCurrentSession(session);
       setError(null);
-      console.log('Interview session started:', session.id);
+      console.log('Interview session started with Gemini AI:', session.id);
       return session;
     } catch (err) {
       console.error('Error starting interview:', err);
@@ -44,8 +44,8 @@ export function useInterview() {
     setError(null);
 
     try {
-      console.log('Generating question for session:', session.id);
-      const question = await huggingFaceService.generateInterviewQuestion({
+      console.log('Generating question with Gemini AI for session:', session.id);
+      const question = await geminiService.generateInterviewQuestion({
         type: session.settings.type,
         difficulty: session.settings.difficulty,
         previousMessages: session.messages,
@@ -65,11 +65,11 @@ export function useInterview() {
       };
 
       setCurrentSession(updatedSession);
-      console.log('Question generated successfully:', question);
+      console.log('Question generated successfully with Gemini:', question.substring(0, 100) + '...');
       return message;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate question';
-      console.error('Error generating question:', errorMessage);
+      console.error('Error generating question with Gemini:', errorMessage);
       setError(errorMessage);
       
       // Return a fallback question to keep the interview going
@@ -90,7 +90,7 @@ export function useInterview() {
     } finally {
       setIsGenerating(false);
     }
-  }, [currentSession, huggingFaceService]);
+  }, [currentSession, geminiService]);
 
   const addUserResponse = useCallback((content: string) => {
     if (!currentSession) {
@@ -111,7 +111,7 @@ export function useInterview() {
     };
 
     setCurrentSession(updatedSession);
-    console.log('User response added:', content);
+    console.log('User response added:', content.substring(0, 50) + '...');
     return message;
   }, [currentSession]);
 
@@ -126,21 +126,27 @@ export function useInterview() {
       endTime: new Date()
     };
 
-    // Generate final feedback
+    // Generate final feedback using Gemini
     try {
       if (currentSession.messages.length > 0) {
         const userMessages = currentSession.messages.filter(m => m.role === 'user');
         
         if (userMessages.length > 0) {
           const lastUserMessage = userMessages[userMessages.length - 1];
-          const feedback = await huggingFaceService.provideFeedback({
-            userResponse: lastUserMessage.content,
-            question: 'Overall interview performance',
-            type: currentSession.settings.type
-          });
+          const lastQuestion = currentSession.messages
+            .filter(m => m.role === 'assistant')
+            .pop();
 
-          endedSession.score = feedback.score;
-          endedSession.feedback = feedback.feedback;
+          if (lastQuestion) {
+            const feedback = await geminiService.provideFeedback({
+              userResponse: lastUserMessage.content,
+              question: lastQuestion.content,
+              type: currentSession.settings.type
+            });
+
+            endedSession.score = feedback.score;
+            endedSession.feedback = feedback.feedback;
+          }
         } else {
           // No user responses, set default values
           endedSession.score = 50;
@@ -148,7 +154,7 @@ export function useInterview() {
         }
       }
     } catch (err) {
-      console.error('Error generating final feedback:', err);
+      console.error('Error generating final feedback with Gemini:', err);
       // Set default values if feedback generation fails
       endedSession.score = 75;
       endedSession.feedback = 'Interview completed successfully! Keep practicing to improve your skills.';
@@ -163,7 +169,7 @@ export function useInterview() {
 
     setCurrentSession(null);
     return endedSession;
-  }, [currentSession, storageService, huggingFaceService]);
+  }, [currentSession, storageService, geminiService]);
 
   const getFeedback = useCallback(async (userResponse: string, question: string) => {
     if (!currentSession) {
@@ -172,13 +178,13 @@ export function useInterview() {
     }
 
     try {
-      return await huggingFaceService.provideFeedback({
+      return await geminiService.provideFeedback({
         userResponse,
         question,
         type: currentSession.settings.type
       });
     } catch (err) {
-      console.error('Error getting feedback:', err);
+      console.error('Error getting feedback from Gemini:', err);
       // Return default feedback if service fails
       return {
         score: 75,
@@ -186,7 +192,7 @@ export function useInterview() {
         suggestions: ['Practice speaking clearly', 'Provide specific examples', 'Stay confident']
       };
     }
-  }, [currentSession, huggingFaceService]);
+  }, [currentSession, geminiService]);
 
   return {
     currentSession,

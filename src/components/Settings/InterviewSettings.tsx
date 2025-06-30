@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Zap, Key, Save } from 'lucide-react';
+import { Play, Upload, User, Clock, Globe, Briefcase, CheckCircle, Zap, Key, Save, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AvatarSelector from '../Avatar/AvatarSelector';
 import Footer from '../Common/Footer';
 import { INTERVIEW_TYPES, DIFFICULTY_LEVELS, VOICE_ACCENTS } from '../../utils/constants';
 import { StorageService } from '../../services/storage';
+import { GeminiService } from '../../services/gemini';
 import type { InterviewSettings } from '../../types';
 
 interface InterviewSettingsProps {
@@ -22,11 +23,13 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
   });
 
   const [resumeData, setResumeData] = useState<any>(null);
-  const [huggingFaceApiKey, setHuggingFaceApiKey] = useState<string>(
-    StorageService.getInstance().getHuggingFaceApiKey() || ''
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(
+    StorageService.getInstance().getGeminiApiKey() || ''
   );
   const [showApiKeySection, setShowApiKeySection] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
+
+  const geminiService = new GeminiService();
 
   const handleSettingChange = <K extends keyof InterviewSettings>(
     key: K,
@@ -71,7 +74,8 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
   };
 
   const handleSaveApiKey = () => {
-    StorageService.getInstance().saveHuggingFaceApiKey(huggingFaceApiKey);
+    StorageService.getInstance().saveGeminiApiKey(geminiApiKey);
+    geminiService.saveApiKey(geminiApiKey);
     setApiKeySaved(true);
     setTimeout(() => setApiKeySaved(false), 2000);
   };
@@ -86,60 +90,60 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
             animate={{ opacity: 1, y: 0 }}
             className="text-center"
           >
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Customize Your Interview</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Customize Your AI Interview</h2>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              Configure your mock interview experience for optimal practice
+              Configure your realistic interview experience with Gemini AI
             </p>
             
-            {/* Free AI Badge */}
+            {/* Gemini AI Badge */}
             <div className="mt-4">
-              <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 text-green-700 dark:text-green-300 rounded-full border border-green-200 dark:border-green-700">
-                <CheckCircle className="w-5 h-5 mr-2" />
-                <span className="font-semibold">100% Free Open Source AI</span>
+              <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-700">
+                <Sparkles className="w-5 h-5 mr-2" />
+                <span className="font-semibold">Powered by Google Gemini AI</span>
                 <Zap className="w-4 h-4 ml-2 text-yellow-500" />
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                No API keys required • Privacy-focused • Powered by Hugging Face
+                Advanced AI for realistic interviews • Intelligent question generation • Personalized feedback
               </p>
               <button
                 onClick={() => setShowApiKeySection(!showApiKeySection)}
                 className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mt-1 underline"
               >
-                {showApiKeySection ? 'Hide' : 'Show'} optional API key settings
+                {showApiKeySection ? 'Hide' : 'Show'} Gemini API key settings
               </button>
             </div>
           </motion.div>
 
-          {/* Optional API Key Section */}
+          {/* Gemini API Key Section */}
           {showApiKeySection && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-200 dark:border-blue-700 p-6"
+              className="bg-purple-50 dark:bg-purple-900/30 rounded-xl border border-purple-200 dark:border-purple-700 p-6"
             >
               <div className="flex items-center mb-4">
-                <Key className="w-5 h-5 text-blue-500 mr-2" />
-                <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300">Hugging Face API Key (Optional)</h3>
+                <Key className="w-5 h-5 text-purple-500 mr-2" />
+                <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-300">Gemini API Key</h3>
               </div>
-              <p className="text-sm text-blue-800 dark:text-blue-300 mb-4">
-                For enhanced AI responses, you can optionally provide your Hugging Face API key. 
-                The app works without it using fallback questions.
+              <p className="text-sm text-purple-800 dark:text-purple-300 mb-4">
+                Add your Google Gemini API key for enhanced AI-powered interviews with realistic question generation and intelligent feedback.
+                Without an API key, the app will use fallback questions.
               </p>
               <div className="flex gap-3">
                 <input
                   type="password"
-                  value={huggingFaceApiKey}
-                  onChange={(e) => setHuggingFaceApiKey(e.target.value)}
-                  placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="flex-1 px-4 py-2 border border-blue-300 dark:border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="flex-1 px-4 py-2 border border-purple-300 dark:border-purple-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
                 <button
                   onClick={handleSaveApiKey}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
                     apiKeySaved
                       ? 'bg-green-500 text-white'
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                      : 'bg-purple-500 text-white hover:bg-purple-600'
                   }`}
                 >
                   {apiKeySaved ? (
@@ -155,15 +159,15 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
                   )}
                 </button>
               </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
                 Get your free API key at{' '}
                 <a
-                  href="https://huggingface.co/settings/tokens"
+                  href="https://makersuite.google.com/app/apikey"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline hover:text-blue-800 dark:hover:text-blue-300"
+                  className="underline hover:text-purple-800 dark:hover:text-purple-300"
                 >
-                  huggingface.co/settings/tokens
+                  Google AI Studio
                 </a>
               </p>
             </motion.div>
@@ -325,7 +329,7 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
                       {resumeData ? 'Resume uploaded ✅' : 'Upload your resume'}
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      PDF files only • Get personalized questions
+                      PDF files only • Get AI-personalized questions
                     </span>
                   </label>
                 </div>
@@ -360,16 +364,17 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleStartInterview}
-                    className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
+                    className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
                   >
                     <Play className="w-6 h-6 mr-2" />
-                    Start Free Interview
+                    Start AI Interview
                   </motion.button>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
                     Your session will be {settings.duration} minutes of {settings.type} questions
                   </p>
-                  <div className="flex items-center justify-center mt-2 text-xs text-green-600 dark:text-green-400">
-                    
+                  <div className="flex items-center justify-center mt-2 text-xs text-purple-600 dark:text-purple-400">
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    <span>Powered by Gemini AI</span>
                   </div>
                 </div>
               </motion.div>
@@ -379,15 +384,16 @@ export default function InterviewSettings({ onStartInterview, onResumeUpload }: 
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.7 }}
-                className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 rounded-xl border border-green-200 dark:border-green-700 p-6"
+                className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 rounded-xl border border-purple-200 dark:border-purple-700 p-6"
               >
-                <h4 className="font-semibold text-green-900 dark:text-green-300 mb-3">💡 Quick Tips</h4>
-                <ul className="text-sm text-green-800 dark:text-green-400 space-y-2">
+                <h4 className="font-semibold text-purple-900 dark:text-purple-300 mb-3">💡 AI Interview Tips</h4>
+                <ul className="text-sm text-purple-800 dark:text-purple-400 space-y-2">
                   <li>• Find a quiet space with good microphone access</li>
                   <li>• Use Chrome or Edge for best voice recognition</li>
                   <li>• Speak clearly and at a moderate pace</li>
                   <li>• Take your time to think before responding</li>
-                  <li>• Your data stays private - no external tracking</li>
+                  <li>• AI will adapt questions based on your responses</li>
+                  <li>• Get detailed feedback powered by Gemini AI</li>
                 </ul>
               </motion.div>
             </div>

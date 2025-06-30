@@ -60,8 +60,16 @@ export class StorageService {
     return localStorage.getItem('huggingface_api_key');
   }
 
+  saveGeminiApiKey(apiKey: string): void {
+    localStorage.setItem('gemini_api_key', apiKey);
+  }
+
+  getGeminiApiKey(): string | null {
+    return localStorage.getItem('gemini_api_key');
+  }
+
   clearData(): void {
-    const keysToKeep = ['openai_api_key', 'huggingface_api_key'];
+    const keysToKeep = ['openai_api_key', 'huggingface_api_key', 'gemini_api_key'];
     const allKeys = Object.keys(localStorage);
     
     allKeys.forEach(key => {
