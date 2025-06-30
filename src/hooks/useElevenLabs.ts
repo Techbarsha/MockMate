@@ -31,35 +31,56 @@ export function useElevenLabs() {
           const voices = await service.getVoices();
           setAvailableVoices(voices);
           
-          // Set default voice (prefer female professional voices)
-          const defaultVoice = voices.find(v => 
-            v.name.toLowerCase().includes('bella') || 
-            v.name.toLowerCase().includes('rachel') ||
-            v.labels?.gender === 'female'
-          ) || voices[0];
+          let voiceToSelect = null;
           
-          if (defaultVoice) {
-            setSelectedVoice(defaultVoice.voiceId);
+          // Try to find a preferred voice from the API response
+          if (voices && voices.length > 0) {
+            voiceToSelect = voices.find(v => 
+              v.name.toLowerCase().includes('bella') || 
+              v.name.toLowerCase().includes('rachel') ||
+              v.labels?.gender === 'female'
+            ) || voices[0];
           }
           
-          // Load usage stats
-          try {
-            const stats = await service.getUsageStats();
-            setUsageStats(stats);
-          } catch (statsError) {
-            console.warn('Could not load usage stats:', statsError);
+          // If no voices from API, try recommended voices as fallback
+          if (!voiceToSelect) {
+            const recommendedVoices = service.getRecommendedVoices();
+            if (recommendedVoices && recommendedVoices.length > 0) {
+              voiceToSelect = recommendedVoices[0];
+              console.log('Using recommended voice as fallback:', voiceToSelect);
+            }
           }
           
-          setIsReady(true);
-          setError(null);
-          console.log('ElevenLabs service initialized successfully');
+          // Only set as ready if we have a valid voice selected
+          if (voiceToSelect && voiceToSelect.voiceId) {
+            setSelectedVoice(voiceToSelect.voiceId);
+            
+            // Load usage stats
+            try {
+              const stats = await service.getUsageStats();
+              setUsageStats(stats);
+            } catch (statsError) {
+              console.warn('Could not load usage stats:', statsError);
+            }
+            
+            setIsReady(true);
+            setError(null);
+            console.log('ElevenLabs service initialized successfully with voice:', voiceToSelect.name || voiceToSelect.voiceId);
+          } else {
+            setIsReady(false);
+            setError('No voices available. Please check your ElevenLabs API key and account status.');
+            console.error('No voices available from API or recommended voices');
+          }
+          
         } catch (error) {
           console.error('Error initializing ElevenLabs:', error);
           setError(error instanceof Error ? error.message : 'Failed to initialize ElevenLabs');
           setIsReady(false);
+          setSelectedVoice('');
         }
       } else {
         setIsReady(false);
+        setSelectedVoice('');
         setError('ElevenLabs API key not configured');
       }
     };
@@ -86,7 +107,8 @@ export function useElevenLabs() {
       throw new Error(errorMsg);
     }
 
-    if (!voiceId && !selectedVoice) {
+    const voiceToUse = voiceId || selectedVoice;
+    if (!voiceToUse) {
       const errorMsg = 'No voice selected';
       setError(errorMsg);
       throw new Error(errorMsg);
@@ -98,7 +120,7 @@ export function useElevenLabs() {
     try {
       console.log('Speaking with ElevenLabs:', text.substring(0, 50) + '...');
       
-      await service.speakText(text, voiceId || selectedVoice, {
+      await service.speakText(text, voiceToUse, {
         stability: 0.5,
         similarityBoost: 0.75,
         style: 0.0,
@@ -131,7 +153,12 @@ export function useElevenLabs() {
     
     try {
       setError(null);
-      const success = await service.testVoice(voiceId || selectedVoice);
+      const voiceToTest = voiceId || selectedVoice;
+      if (!voiceToTest) {
+        throw new Error('No voice selected for testing');
+      }
+      
+      const success = await service.testVoice(voiceToTest);
       console.log('ElevenLabs voice test result:', success);
       return success;
     } catch (err) {
@@ -155,15 +182,28 @@ export function useElevenLabs() {
       const voices = await service.getVoices();
       setAvailableVoices(voices);
       
-      // Update selected voice if it's not in the new list
-      if (selectedVoice && !voices.find(v => v.voiceId === selectedVoice)) {
+      // Update selected voice if it's not in the new list or if no voice is selected
+      if (!selectedVoice || (voices.length > 0 && !voices.find(v => v.voiceId === selectedVoice))) {
         const defaultVoice = voices.find(v => 
           v.name.toLowerCase().includes('bella') || 
-          v.name.toLowerCase().includes('rachel')
+          v.name.toLowerCase().includes('rachel') ||
+          v.labels?.gender === 'female'
         ) || voices[0];
         
         if (defaultVoice) {
           setSelectedVoice(defaultVoice.voiceId);
+          setIsReady(true);
+        } else {
+          // Try fallback to recommended voices
+          const recommendedVoices = service.getRecommendedVoices();
+          if (recommendedVoices && recommendedVoices.length > 0) {
+            setSelectedVoice(recommendedVoices[0].voiceId);
+            setIsReady(true);
+          } else {
+            setSelectedVoice('');
+            setIsReady(false);
+            setError('No voices available');
+          }
         }
       }
       
