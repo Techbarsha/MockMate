@@ -7,6 +7,8 @@ export class SpeechService {
   private voices: SpeechSynthesisVoice[] = [];
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private isInitialized = false;
+  private recognitionAttempts = 0;
+  private maxAttempts = 3;
 
   constructor() {
     this.synthesis = window.speechSynthesis;
@@ -54,23 +56,39 @@ export class SpeechService {
     this.recognition.continuous = false;
     this.recognition.interimResults = true;
     this.recognition.lang = 'en-US';
+    this.recognition.maxAlternatives = 1;
+
+    // Add more robust settings
+    this.recognition.grammars = null;
+    this.recognition.serviceURI = null;
+
+    this.recognition.onstart = () => {
+      console.log('Speech recognition started successfully');
+      this.recognitionAttempts = 0;
+    };
 
     this.recognition.onresult = (event: any) => {
       let finalTranscript = '';
+      let interimTranscript = '';
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
         }
       }
 
-      if (finalTranscript && this.onResultCallback) {
-        this.onResultCallback(finalTranscript.trim());
+      // Provide interim results for better UX
+      const currentTranscript = finalTranscript || interimTranscript;
+      if (currentTranscript && this.onResultCallback) {
+        this.onResultCallback(currentTranscript.trim());
       }
     };
 
     this.recognition.onend = () => {
+      console.log('Speech recognition ended');
       this.isListening = false;
       if (this.onEndCallback) {
         this.onEndCallback();
@@ -78,48 +96,159 @@ export class SpeechService {
     };
 
     this.recognition.onerror = (event: any) => {
-      // Differentiate between critical errors and expected events
       const errorType = event.error;
-      
-      if (errorType === 'no-speech' || errorType === 'aborted') {
-        // These are expected events, not critical errors
-        console.warn('Speech recognition event:', errorType);
-      } else {
-        // These are actual errors that need attention
-        console.error('Speech recognition error:', errorType);
-      }
+      console.log('Speech recognition event:', errorType);
       
       this.isListening = false;
-      if (this.onEndCallback) {
-        this.onEndCallback(errorType);
+      
+      // Handle different error types appropriately
+      switch (errorType) {
+        case 'no-speech':
+          console.log('No speech detected - this is normal, user may not have spoken yet');
+          // Don't treat this as an error, just restart if needed
+          if (this.recognitionAttempts < this.maxAttempts) {
+            this.recognitionAttempts++;
+            console.log(`Restarting recognition (attempt ${this.recognitionAttempts}/${this.maxAttempts})`);
+            setTimeout(() => {
+              if (!this.isListening) {
+                this.restartRecognition();
+              }
+            }, 1000);
+          } else {
+            if (this.onEndCallback) {
+              this.onEndCallback('no-speech-timeout');
+            }
+          }
+          break;
+          
+        case 'aborted':
+          console.log('Speech recognition was aborted - this is normal when stopping');
+          if (this.onEndCallback) {
+            this.onEndCallback();
+          }
+          break;
+          
+        case 'audio-capture':
+          console.error('Audio capture failed - microphone issue');
+          if (this.onEndCallback) {
+            this.onEndCallback('microphone-error');
+          }
+          break;
+          
+        case 'not-allowed':
+          console.error('Microphone permission denied');
+          if (this.onEndCallback) {
+            this.onEndCallback('permission-denied');
+          }
+          break;
+          
+        case 'network':
+          console.error('Network error during speech recognition');
+          if (this.onEndCallback) {
+            this.onEndCallback('network-error');
+          }
+          break;
+          
+        case 'service-not-allowed':
+          console.error('Speech recognition service not allowed');
+          if (this.onEndCallback) {
+            this.onEndCallback('service-error');
+          }
+          break;
+          
+        default:
+          console.warn('Unknown speech recognition error:', errorType);
+          if (this.onEndCallback) {
+            this.onEndCallback(errorType);
+          }
       }
+    };
+
+    this.recognition.onspeechstart = () => {
+      console.log('Speech detected');
+    };
+
+    this.recognition.onspeechend = () => {
+      console.log('Speech ended');
+    };
+
+    this.recognition.onsoundstart = () => {
+      console.log('Sound detected');
+    };
+
+    this.recognition.onsoundend = () => {
+      console.log('Sound ended');
     };
   }
 
-  startListening(onResult: (text: string) => void, onEnd?: (error?: string) => void): boolean {
+  private restartRecognition() {
     if (!this.recognition || this.isListening) {
       return false;
     }
 
-    this.onResultCallback = onResult;
-    this.onEndCallback = onEnd;
-
     try {
+      console.log('Restarting speech recognition...');
       this.recognition.start();
       this.isListening = true;
-      console.log('Speech recognition started');
+      return true;
+    } catch (error) {
+      console.error('Error restarting speech recognition:', error);
+      return false;
+    }
+  }
+
+  startListening(onResult: (text: string) => void, onEnd?: (error?: string) => void): boolean {
+    if (!this.recognition) {
+      console.error('Speech recognition not available');
+      return false;
+    }
+
+    if (this.isListening) {
+      console.log('Already listening, stopping first...');
+      this.stopListening();
+      // Wait a moment before restarting
+      setTimeout(() => {
+        this.startListening(onResult, onEnd);
+      }, 500);
+      return true;
+    }
+
+    this.onResultCallback = onResult;
+    this.onEndCallback = onEnd;
+    this.recognitionAttempts = 0;
+
+    try {
+      console.log('Starting speech recognition...');
+      this.recognition.start();
+      this.isListening = true;
       return true;
     } catch (error) {
       console.error('Error starting speech recognition:', error);
+      
+      // Handle the case where recognition is already running
+      if (error instanceof Error && error.message.includes('already started')) {
+        console.log('Recognition already started, attempting to stop and restart...');
+        this.recognition.stop();
+        setTimeout(() => {
+          this.startListening(onResult, onEnd);
+        }, 500);
+        return true;
+      }
+      
       return false;
     }
   }
 
   stopListening() {
     if (this.recognition && this.isListening) {
-      this.recognition.stop();
-      this.isListening = false;
-      console.log('Speech recognition stopped');
+      try {
+        console.log('Stopping speech recognition...');
+        this.recognition.stop();
+        this.isListening = false;
+      } catch (error) {
+        console.error('Error stopping speech recognition:', error);
+        this.isListening = false;
+      }
     }
   }
 
@@ -346,5 +475,18 @@ export class SpeechService {
     console.log('Force reloading voices...');
     this.voices = this.synthesis.getVoices();
     console.log('Voices after reload:', this.voices.length);
+  }
+
+  // Check microphone permissions
+  async checkMicrophonePermissions(): Promise<boolean> {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone access granted');
+      stream.getTracks().forEach(track => track.stop()); // Clean up
+      return true;
+    } catch (error) {
+      console.error('Microphone access denied or failed:', error);
+      return false;
+    }
   }
 }
