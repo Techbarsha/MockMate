@@ -14,8 +14,16 @@ export class ElevenLabsService {
     const envKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
     const storedKey = localStorage.getItem('elevenlabs_api_key');
     
+    // Use the provided API key as default
+    const providedKey = 'sk_54b7d57e3443eebc96062eac13fa7d28d410d19049a1df39';
+    
     if (envKey) return envKey;
     if (storedKey) return storedKey;
+    if (providedKey) {
+      // Auto-save the provided key
+      localStorage.setItem('elevenlabs_api_key', providedKey);
+      return providedKey;
+    }
     
     return '';
   }
@@ -47,6 +55,7 @@ export class ElevenLabsService {
     }
 
     try {
+      console.log('Fetching ElevenLabs voices...');
       const response = await fetch(`${this.baseUrl}/voices`, {
         headers: {
           'xi-api-key': this.apiKey,
@@ -59,6 +68,8 @@ export class ElevenLabsService {
       }
 
       const data = await response.json();
+      console.log('ElevenLabs voices loaded successfully:', data.voices?.length || 0);
+      
       return data.voices.map((voice: any) => ({
         voiceId: voice.voice_id,
         name: voice.name,
@@ -389,7 +400,9 @@ export class ElevenLabsService {
   async testVoice(voiceId?: string): Promise<boolean> {
     try {
       const testVoiceId = voiceId || 'EXAVITQu4vr4xnSDxMaL'; // Bella voice
-      const testText = 'Hello, this is a test of the ElevenLabs voice synthesis system.';
+      const testText = 'Hello, this is a test of the ElevenLabs voice synthesis system. Your API key is working correctly.';
+      
+      console.log('Testing ElevenLabs voice with ID:', testVoiceId);
       
       await this.speakText(testText, testVoiceId, {
         stability: 0.5,

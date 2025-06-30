@@ -68,8 +68,16 @@ export class StorageService {
     return localStorage.getItem('gemini_api_key');
   }
 
+  saveElevenLabsApiKey(apiKey: string): void {
+    localStorage.setItem('elevenlabs_api_key', apiKey);
+  }
+
+  getElevenLabsApiKey(): string | null {
+    return localStorage.getItem('elevenlabs_api_key');
+  }
+
   clearData(): void {
-    const keysToKeep = ['openai_api_key', 'huggingface_api_key', 'gemini_api_key'];
+    const keysToKeep = ['openai_api_key', 'huggingface_api_key', 'gemini_api_key', 'elevenlabs_api_key'];
     const allKeys = Object.keys(localStorage);
     
     allKeys.forEach(key => {
@@ -77,5 +85,16 @@ export class StorageService {
         localStorage.removeItem(key);
       }
     });
+  }
+
+  // Initialize ElevenLabs API key if provided
+  initializeElevenLabsKey(): void {
+    const providedKey = 'sk_54b7d57e3443eebc96062eac13fa7d28d410d19049a1df39';
+    const existingKey = this.getElevenLabsApiKey();
+    
+    if (!existingKey && providedKey) {
+      console.log('Initializing ElevenLabs API key...');
+      this.saveElevenLabsApiKey(providedKey);
+    }
   }
 }
