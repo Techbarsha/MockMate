@@ -58,7 +58,8 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
     speak,
     stopSpeaking,
     testVoice,
-    hasApiKey: hasElevenLabsKey
+    hasApiKey: hasElevenLabsKey,
+    selectedVoice
   } = useElevenLabs();
 
   // Predefined interview questions
@@ -178,34 +179,59 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
       
       setMessages(prev => [...prev, questionMessage]);
       
-      // Speak the question automatically
+      // Check if voice is available before attempting to speak
       if (!isSpeakerMuted && hasElevenLabsKey) {
-        console.log('Speaking question with ElevenLabs:', currentQuestion.substring(0, 50) + '...');
-        await speak(currentQuestion);
+        // Validate voice selection before speaking
+        if (!selectedVoice || selectedVoice.trim() === '') {
+          console.warn('No voice selected for ElevenLabs. Skipping speech synthesis.');
+          console.log('Question displayed without voice:', currentQuestion.substring(0, 50) + '...');
+        } else {
+          console.log('Speaking question with ElevenLabs:', currentQuestion.substring(0, 50) + '...');
+          try {
+            await speak(currentQuestion);
+          } catch (speakError) {
+            console.error('Error speaking question:', speakError);
+            // Continue with the interview flow even if speech fails
+          }
+        }
+      } else {
+        console.log('Voice synthesis skipped - muted or no API key');
       }
       
-      // Automatically start listening for response after question is spoken
+      // Automatically start listening for response after question is displayed/spoken
       setTimeout(async () => {
         if (!interviewPaused && isAutoMode) {
           setIsWaitingForResponse(true);
           console.log('Auto-starting voice recognition...');
-          await startListening();
-          
-          // Set a timeout for response (30 seconds)
-          const timeout = setTimeout(async () => {
-            if (isListening) {
-              console.log('Response timeout reached, moving to next question');
-              await stopListening();
+          try {
+            await startListening();
+            
+            // Set a timeout for response (30 seconds)
+            const timeout = setTimeout(async () => {
+              if (isListening) {
+                console.log('Response timeout reached, moving to next question');
+                await stopListening();
+                handleAutoNextQuestion();
+              }
+            }, 30000);
+            
+            setResponseTimeout(timeout);
+          } catch (listenError) {
+            console.error('Error starting voice recognition:', listenError);
+            // Continue with interview flow even if listening fails
+            setTimeout(() => {
               handleAutoNextQuestion();
-            }
-          }, 30000);
-          
-          setResponseTimeout(timeout);
+            }, 3000);
+          }
         }
       }, 1000);
       
     } catch (error) {
       console.error('Error in automatic question flow:', error);
+      // Continue with interview flow even if there's an error
+      setTimeout(() => {
+        handleAutoNextQuestion();
+      }, 3000);
     }
   };
 
@@ -657,6 +683,19 @@ export default function InterviewSession({ settings, onBack, onComplete, resumeD
                   {isAutoMode && (
                     <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
                       🎤 Automatic mode: Natural voice conversations with ElevenLabs
+                    </div>
+                  )}
+
+                  {/* Voice Selection Status */}
+                  {hasElevenLabsKey && (
+                    <div className="mt-2 text-xs">
+                      <span className={`px-2 py-1 rounded ${
+                        selectedVoice && selectedVoice.trim() !== '' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        Voice: {selectedVoice && selectedVoice.trim() !== '' ? 'Selected' : 'Not Selected'}
+                      </span>
                     </div>
                   )}
                 </div>
